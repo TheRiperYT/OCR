@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Quick OCR and Translate",
+  "name": "エクスプロージョン: OCR and Translate",
   "version": "1.0",
   "description": "Perform OCR and translation on selected screen areas",
   "permissions": [
