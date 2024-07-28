@@ -32,7 +32,7 @@ To use エクスプロージョン, you'll need to set up API keys for OCR.space
 ### 🔑 OCR.space API Key
 
 1. Visit the [OCR.space website](https://ocr.space/ocrapi)
-2. Register for a free API key (or payed version for faster speeds) with a valid email
+2. Register for a free API key (25k req/month) with a valid email
 3. Verify your email
 4. Copy your API key from the received email
 
