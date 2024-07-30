@@ -10,7 +10,7 @@ let isExtensionEnabled = true;
 let lastOverlayData = null;
 
 const styles = `
-#ocr-overlay {
+    #ocr-overlay {
         position: fixed;
         top: 0;
         left: 0;
@@ -25,6 +25,19 @@ const styles = `
         pointer-events: none;
         box-sizing: border-box;
         box-shadow: 0 0 0 2px #fff;
+    }
+    #esc-message {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-size: 18px;
+        z-index: 10002;
+        display: none;
     }
     #result-box {
         position: fixed;
@@ -227,6 +240,11 @@ const kanjiInfoBox = document.createElement("div");
 kanjiInfoBox.id = "kanji-info";
 document.body.appendChild(kanjiInfoBox);
 
+const escMessage = document.createElement('div');
+escMessage.id = 'esc-message';
+escMessage.textContent = 'Press ESC to cancel selection';
+document.body.appendChild(escMessage);
+
 function handleKeyDown(e) {
     if (!isExtensionEnabled) return;
     if (e.ctrlKey && e.shiftKey && e.key === "S") {
@@ -252,6 +270,7 @@ function showOverlay() {
     overlay.style.display = "block";
     overlay.style.clipPath = "none";
     clearSelection();
+    escMessage.style.display = 'block';
 }
 
 document.addEventListener("keydown", handleKeyDown);
@@ -263,8 +282,8 @@ function startSelection(e) {
     isSelecting = true;
     startX = e.clientX;
     startY = e.clientY;
-    clearSelection(); // Clear any existing selection before starting a new one
-    removeOverlay();
+    clearSelection();
+    escMessage.style.display = 'none';
     updateSelectionBox(e);
 }
 
@@ -326,8 +345,8 @@ let finalSelectionCoords = { left: 0, top: 0, width: 0, height: 0 };
 function endSelection(e) {
     if (!isSelecting) return;
     isSelecting = false;
+    escMessage.style.display = 'none';
 
-    // Store the final selection coordinates
     finalSelectionCoords = {
         left: parseInt(selection.style.left),
         top: parseInt(selection.style.top),
@@ -336,9 +355,18 @@ function endSelection(e) {
     };
 
     captureSelection();
-    overlay.style.display = "none"; // Hide overlay after selection
-    clearSelection(); // Clear the selection after capturing
+    overlay.style.display = 'none';
+    clearSelection();
 }
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && overlay.style.display === 'block') {
+        isSelecting = false;
+        clearSelection();
+        escMessage.style.display = 'none';
+        overlay.style.display = 'none';
+    }
+});
 
 function sendMessage(message) {
     chrome.runtime.sendMessage(message, function (response) {
