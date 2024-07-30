@@ -10,7 +10,7 @@ let isExtensionEnabled = true;
 let lastOverlayData = null;
 
 const styles = `
-    #ocr-overlay {
+#ocr-overlay {
         position: fixed;
         top: 0;
         left: 0;
@@ -22,8 +22,9 @@ const styles = `
     }
     #ocr-selection {
         position: absolute;
-        border: 2px solid #fff;
-        background: rgba(255, 255, 255, 0.2);
+        pointer-events: none;
+        box-sizing: border-box;
+        box-shadow: 0 0 0 2px #fff;
     }
     #result-box {
         position: fixed;
@@ -247,7 +248,8 @@ function handleMouseDown(e) {
 
 function showOverlay() {
     overlay.style.display = 'block';
-    clearSelection(); // Clear any existing selection
+    overlay.style.clipPath = 'none';
+    clearSelection();
 }
 
 document.addEventListener('keydown', handleKeyDown);
@@ -269,6 +271,7 @@ function clearSelection() {
     selection.style.height = '0';
     selection.style.left = '0';
     selection.style.top = '0';
+    overlay.style.clipPath = 'none';
 }
 
 function updateSelection(e) {
@@ -286,6 +289,31 @@ function updateSelectionBox(e) {
     selection.style.top = `${top}px`;
     selection.style.width = `${width}px`;
     selection.style.height = `${height}px`;
+
+    // Get the overlay's bounding rectangle
+    const overlayRect = overlay.getBoundingClientRect();
+
+    // Calculate percentages for clip-path, adjusting for the overlay's position
+    const leftPercentage = (left - overlayRect.left) / overlayRect.width * 100;
+    const topPercentage = (top - overlayRect.top) / overlayRect.height * 100;
+    const rightPercentage = (left + width - overlayRect.left) / overlayRect.width * 100;
+    const bottomPercentage = (top + height - overlayRect.top) / overlayRect.height * 100;
+
+    // Update the clip-path of the overlay
+    overlay.style.clipPath = `
+        polygon(
+            0% 0%,
+            100% 0%,
+            100% 100%,
+            0% 100%,
+            0% ${topPercentage}%,
+            ${leftPercentage}% ${topPercentage}%,
+            ${leftPercentage}% ${bottomPercentage}%,
+            ${rightPercentage}% ${bottomPercentage}%,
+            ${rightPercentage}% ${topPercentage}%,
+            0% ${topPercentage}%
+        )
+    `;
 }
 
 let finalSelectionCoords = { left: 0, top: 0, width: 0, height: 0 };
@@ -336,9 +364,9 @@ function handleResponse(response) {
             });
         });
     } else if (response.action === "ocrError") {
-        console.error('Content script: OCR Error:', response.error, 'Details:', response.details);
+        console.log('Content script: OCR Error:', response.error, 'Details:', response.details);
         hideLoadingIndicator();
-        alert(`An error occurred during OCR: ${response.details || response.error}. Please try again or select a different area.`);
+        displayErrorMessage("Couldn't find text in the selection. Try again");
     } else if (response.action === "translationResult") {
         console.log('Content script: Translation result received:', response.translatedText);
         hideLoadingIndicator();
@@ -348,7 +376,7 @@ function handleResponse(response) {
     } else if (response.action === "translationError") {
         console.error('Content script: Translation Error:', response.error);
         hideLoadingIndicator();
-        alert(`An error occurred during translation: ${response.error}. Please try again.`);
+        displayErrorMessage(`An error occurred during translation: ${response.error}. Please try again.`);
     } else if (response.action === "kanjiInfo") {
         console.log('Content script: Kanji info received:', response);
         hideLoadingIndicator();
@@ -358,6 +386,40 @@ function handleResponse(response) {
         hideLoadingIndicator();
         showMultiKanjiInfo(response);
     }
+}
+
+// Updated function to display error messages
+function displayErrorMessage(message) {
+    let errorDisplay = document.getElementById('error-display');
+    if (!errorDisplay) {
+        errorDisplay = document.createElement('div');
+        errorDisplay.id = 'error-display';
+        errorDisplay.style.cssText = `
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ffcccc;
+            color: #990000;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 10000;
+            display: none;
+        `;
+        document.body.appendChild(errorDisplay);
+    }
+    errorDisplay.textContent = message;
+    errorDisplay.style.display = 'block';
+    
+    // Clear any existing timeout
+    if (errorDisplay.timeoutId) {
+        clearTimeout(errorDisplay.timeoutId);
+    }
+    
+    // Set new timeout
+    errorDisplay.timeoutId = setTimeout(() => {
+        errorDisplay.style.display = 'none';
+    }, 3000); // Hide the message after 3 seconds
 }
 
 function captureSelection() {

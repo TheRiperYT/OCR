@@ -101,7 +101,7 @@ function performOCR(image, language, sendResponse) {
     }
   })
   .catch(error => {
-    console.error('Background: OCR Error:', error);
+    //console.error('Background: OCR Error:', error);
     sendResponse({
       action: "ocrError",
       error: error.toString(),
