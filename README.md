@@ -20,9 +20,9 @@
 - [x] Add Google Translate support
 - [x] Implement DeepL translation option
 - [x] Create Kanji information lookup feature
-- [ ] Add support for more languages (Korean)
-- [ ] Make translation overlay remain on the selected text
-- [ ] Better Popup UI
+- [x] Add support for more languages (Korean)
+- [x] Make translation overlay remain on the selected text
+- [x] Better Popup UI
 - [ ] Add Tessaract support for when API limits are reached
 
 ## 📚 Tutorial: Setting Up API Keys
