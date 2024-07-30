@@ -1,11 +1,11 @@
 let isSelecting = false;
 let startX, startY;
-let currentTranslationService = 'google';
-let lastOCRText = '';
+let currentTranslationService = "google";
+let lastOCRText = "";
 let isHovering = false;
 let currentHoveredElement = null;
 let currentSelection = null;
-let currentLanguage = 'JAP';
+let currentLanguage = "JAP";
 let isExtensionEnabled = true;
 let lastOverlayData = null;
 
@@ -206,30 +206,30 @@ styleSheet.type = "text/css";
 styleSheet.innerText = styles;
 document.head.appendChild(styleSheet);
 
-const overlay = document.createElement('div');
-overlay.id = 'ocr-overlay';
+const overlay = document.createElement("div");
+overlay.id = "ocr-overlay";
 document.body.appendChild(overlay);
 
-const selection = document.createElement('div');
-selection.id = 'ocr-selection';
+const selection = document.createElement("div");
+selection.id = "ocr-selection";
 overlay.appendChild(selection);
 
-const resultBox = document.createElement('div');
-resultBox.id = 'result-box';
+const resultBox = document.createElement("div");
+resultBox.id = "result-box";
 document.body.appendChild(resultBox);
 
-const loadingIndicator = document.createElement('div');
-loadingIndicator.id = 'loading-indicator';
-loadingIndicator.textContent = 'Loading...';
+const loadingIndicator = document.createElement("div");
+loadingIndicator.id = "loading-indicator";
+loadingIndicator.textContent = "Loading...";
 document.body.appendChild(loadingIndicator);
 
-const kanjiInfoBox = document.createElement('div');
-kanjiInfoBox.id = 'kanji-info';
+const kanjiInfoBox = document.createElement("div");
+kanjiInfoBox.id = "kanji-info";
 document.body.appendChild(kanjiInfoBox);
 
 function handleKeyDown(e) {
     if (!isExtensionEnabled) return;
-    if (e.ctrlKey && e.shiftKey && e.key === 'S') {
+    if (e.ctrlKey && e.shiftKey && e.key === "S") {
         e.preventDefault();
         showOverlay();
     }
@@ -237,25 +237,27 @@ function handleKeyDown(e) {
 
 function handleMouseDown(e) {
     if (!isExtensionEnabled) return;
-    if (e.button === 1) { // Middle mouse button
-        resultBox.style.display = 'none';
+    if (e.button === 1) {
+        // Middle mouse button
+        resultBox.style.display = "none";
         removeOverlay();
         showOverlay();
-    } else if (e.button === 0 && overlay.style.display === 'block') { // Left mouse button when overlay is visible
+    } else if (e.button === 0 && overlay.style.display === "block") {
+        // Left mouse button when overlay is visible
         startSelection(e);
     }
 }
 
 function showOverlay() {
-    overlay.style.display = 'block';
-    overlay.style.clipPath = 'none';
+    overlay.style.display = "block";
+    overlay.style.clipPath = "none";
     clearSelection();
 }
 
-document.addEventListener('keydown', handleKeyDown);
-document.addEventListener('mousedown', handleMouseDown);
-overlay.addEventListener('mousemove', updateSelection);
-overlay.addEventListener('mouseup', endSelection);
+document.addEventListener("keydown", handleKeyDown);
+document.addEventListener("mousedown", handleMouseDown);
+overlay.addEventListener("mousemove", updateSelection);
+overlay.addEventListener("mouseup", endSelection);
 
 function startSelection(e) {
     isSelecting = true;
@@ -267,11 +269,11 @@ function startSelection(e) {
 }
 
 function clearSelection() {
-    selection.style.width = '0';
-    selection.style.height = '0';
-    selection.style.left = '0';
-    selection.style.top = '0';
-    overlay.style.clipPath = 'none';
+    selection.style.width = "0";
+    selection.style.height = "0";
+    selection.style.left = "0";
+    selection.style.top = "0";
+    overlay.style.clipPath = "none";
 }
 
 function updateSelection(e) {
@@ -294,10 +296,13 @@ function updateSelectionBox(e) {
     const overlayRect = overlay.getBoundingClientRect();
 
     // Calculate percentages for clip-path, adjusting for the overlay's position
-    const leftPercentage = (left - overlayRect.left) / overlayRect.width * 100;
-    const topPercentage = (top - overlayRect.top) / overlayRect.height * 100;
-    const rightPercentage = (left + width - overlayRect.left) / overlayRect.width * 100;
-    const bottomPercentage = (top + height - overlayRect.top) / overlayRect.height * 100;
+    const leftPercentage =
+        ((left - overlayRect.left) / overlayRect.width) * 100;
+    const topPercentage = ((top - overlayRect.top) / overlayRect.height) * 100;
+    const rightPercentage =
+        ((left + width - overlayRect.left) / overlayRect.width) * 100;
+    const bottomPercentage =
+        ((top + height - overlayRect.top) / overlayRect.height) * 100;
 
     // Update the clip-path of the overlay
     overlay.style.clipPath = `
@@ -321,24 +326,24 @@ let finalSelectionCoords = { left: 0, top: 0, width: 0, height: 0 };
 function endSelection(e) {
     if (!isSelecting) return;
     isSelecting = false;
-    
+
     // Store the final selection coordinates
     finalSelectionCoords = {
         left: parseInt(selection.style.left),
         top: parseInt(selection.style.top),
         width: parseInt(selection.style.width),
-        height: parseInt(selection.style.height)
+        height: parseInt(selection.style.height),
     };
-    
+
     captureSelection();
-    overlay.style.display = 'none'; // Hide overlay after selection
+    overlay.style.display = "none"; // Hide overlay after selection
     clearSelection(); // Clear the selection after capturing
 }
 
 function sendMessage(message) {
-    chrome.runtime.sendMessage(message, function(response) {
+    chrome.runtime.sendMessage(message, function (response) {
         if (chrome.runtime.lastError) {
-            console.error('Error sending message:', chrome.runtime.lastError);
+            console.error("Error sending message:", chrome.runtime.lastError);
             return;
         }
         handleResponse(response);
@@ -346,43 +351,41 @@ function sendMessage(message) {
 }
 
 function handleResponse(response) {
-    console.log('Content script: Received response:', response);
     if (response.action === "ocrResult") {
-        console.log('Content script: OCR result received:', response.text);
         hideLoadingIndicator();
         lastOCRText = response.text;
         lastOverlayData = response.overlay;
-        chrome.storage.sync.get('currentTranslationService', (data) => {
-            currentTranslationService = data.currentTranslationService || 'google';
-            console.log('Content script: Using translation service:', currentTranslationService);
-            showLoadingIndicator(`Translating with ${currentTranslationService}...`);
-            sendMessage({ 
-                action: "translate", 
-                text: response.text, 
+        chrome.storage.sync.get("currentTranslationService", (data) => {
+            currentTranslationService =
+                data.currentTranslationService || "google";
+            showLoadingIndicator(
+                `Translating with ${currentTranslationService}...`
+            );
+            sendMessage({
+                action: "translate",
+                text: response.text,
                 service: currentTranslationService,
-                language: currentLanguage
+                language: currentLanguage,
             });
         });
     } else if (response.action === "ocrError") {
-        console.log('Content script: OCR Error:', response.error, 'Details:', response.details);
         hideLoadingIndicator();
         displayErrorMessage("Couldn't find text in the selection. Try again");
     } else if (response.action === "translationResult") {
-        console.log('Content script: Translation result received:', response.translatedText);
         hideLoadingIndicator();
         displayResults(response.originalText, response.translatedText);
-        const languageToggle = document.getElementById('language-toggle');
-        languageToggle.classList.toggle('active', currentLanguage === 'CHN');
+        const languageToggle = document.getElementById("language-toggle");
+        languageToggle.classList.toggle("active", currentLanguage === "CHN");
     } else if (response.action === "translationError") {
-        console.error('Content script: Translation Error:', response.error);
+        console.error("Content script: Translation Error:", response.error);
         hideLoadingIndicator();
-        displayErrorMessage(`An error occurred during translation: ${response.error}. Please try again.`);
+        displayErrorMessage(
+            `An error occurred during translation: ${response.error}. Please try again.`
+        );
     } else if (response.action === "kanjiInfo") {
-        console.log('Content script: Kanji info received:', response);
         hideLoadingIndicator();
         showKanjiInfo(response);
     } else if (response.action === "multiKanjiInfo") {
-        console.log('Content script: Multi-kanji info received:', response);
         hideLoadingIndicator();
         showMultiKanjiInfo(response);
     }
@@ -390,10 +393,10 @@ function handleResponse(response) {
 
 // Updated function to display error messages
 function displayErrorMessage(message) {
-    let errorDisplay = document.getElementById('error-display');
+    let errorDisplay = document.getElementById("error-display");
     if (!errorDisplay) {
-        errorDisplay = document.createElement('div');
-        errorDisplay.id = 'error-display';
+        errorDisplay = document.createElement("div");
+        errorDisplay.id = "error-display";
         errorDisplay.style.cssText = `
             position: fixed;
             top: 20px;
@@ -409,21 +412,20 @@ function displayErrorMessage(message) {
         document.body.appendChild(errorDisplay);
     }
     errorDisplay.textContent = message;
-    errorDisplay.style.display = 'block';
-    
+    errorDisplay.style.display = "block";
+
     // Clear any existing timeout
     if (errorDisplay.timeoutId) {
         clearTimeout(errorDisplay.timeoutId);
     }
-    
+
     // Set new timeout
     errorDisplay.timeoutId = setTimeout(() => {
-        errorDisplay.style.display = 'none';
+        errorDisplay.style.display = "none";
     }, 3000); // Hide the message after 3 seconds
 }
 
 function captureSelection() {
-    console.log('Content script: Capturing selection...');
     const rect = selection.getBoundingClientRect();
     try {
         sendMessage({
@@ -432,26 +434,26 @@ function captureSelection() {
                 x: rect.left,
                 y: rect.top,
                 width: rect.width,
-                height: rect.height
+                height: rect.height,
             },
-            language: currentLanguage
+            language: currentLanguage,
         });
-        overlay.style.display = 'none';
-        showLoadingIndicator('Capturing selection...');
+        overlay.style.display = "none";
+        showLoadingIndicator("Capturing selection...");
     } catch (error) {
-        console.error('Content script: Error sending message:', error);
-        alert('An error occurred. Please refresh the page and try again.');
+        console.error("Content script: Error sending message:", error);
+        alert("An error occurred. Please refresh the page and try again.");
         hideLoadingIndicator();
     }
 }
 
 function showLoadingIndicator(message) {
     loadingIndicator.textContent = message;
-    loadingIndicator.style.display = 'block';
+    loadingIndicator.style.display = "block";
 }
 
 function hideLoadingIndicator() {
-    loadingIndicator.style.display = 'none';
+    loadingIndicator.style.display = "none";
 }
 
 function displayResults(original, translated) {
@@ -460,13 +462,17 @@ function displayResults(original, translated) {
         <p id="original-text">${original}</p>
         <h3>Translated Text:</h3>
         <div>
-            <button id="google-translate" class="translation-button ${currentTranslationService === 'google' ? 'active' : ''}">Google Translate</button>
-            <button id="deepl-translate" class="translation-button ${currentTranslationService === 'deepl' ? 'active' : ''}">DeepL</button>
+            <button id="google-translate" class="translation-button ${
+                currentTranslationService === "google" ? "active" : ""
+            }">Google Translate</button>
+            <button id="deepl-translate" class="translation-button ${
+                currentTranslationService === "deepl" ? "active" : ""
+            }">DeepL</button>
         </div>
         <p id="translated-text">${translated}</p>
         <span id="close-button">❌</span>
     `;
-    resultBox.style.display = 'block';
+    resultBox.style.display = "block";
 
     setupCloseButton();
     setupTranslationButtons();
@@ -482,225 +488,249 @@ function displayResults(original, translated) {
 }
 
 function setupLanguageToggle() {
-    const languageToggle = document.getElementById('language-toggle');
-    const languages = ['JAP', 'CHN', 'KOR'];
+    const languageToggle = document.getElementById("language-toggle");
+    const languages = ["JAP", "CHN", "KOR"];
     const colors = {
-        'JAP': '#4CAF50',  // Green
-        'CHN': '#F44336',  // Red
-        'KOR': '#3498db'   // Blue
+        JAP: "#4CAF50", // Green
+        CHN: "#F44336", // Red
+        KOR: "#3498db", // Blue
     };
     let currentIndex = languages.indexOf(currentLanguage);
 
     function updateLanguageDisplay() {
         languageToggle.textContent = currentLanguage;
         languageToggle.style.backgroundColor = colors[currentLanguage];
-        languageToggle.style.color = 'white';
-        languageToggle.style.transition = 'background-color 0.3s ease';
+        languageToggle.style.color = "white";
+        languageToggle.style.transition = "background-color 0.3s ease";
     }
 
     function changeLanguage() {
         currentIndex = (currentIndex + 1) % languages.length;
         currentLanguage = languages[currentIndex];
-        
+
         updateLanguageDisplay();
-        
+
         // Save the language preference
         chrome.storage.sync.set({ currentLanguage: currentLanguage });
-        
+
         // Retranslate the text
         if (lastOCRText) {
-            showLoadingIndicator(`Translating with ${currentTranslationService}...`);
-            sendMessage({ 
-                action: "translate", 
-                text: lastOCRText, 
+            showLoadingIndicator(
+                `Translating with ${currentTranslationService}...`
+            );
+            sendMessage({
+                action: "translate",
+                text: lastOCRText,
                 service: currentTranslationService,
-                language: currentLanguage
+                language: currentLanguage,
             });
         }
-        
+
         // Update the character wrapping
         setupCharacterHover();
     }
 
-    updateLanguageDisplay();  // Initial display update
+    updateLanguageDisplay(); // Initial display update
 
-    languageToggle.addEventListener('click', changeLanguage);
+    languageToggle.addEventListener("click", changeLanguage);
 }
 
 function setupCharacterHover() {
-    const originalText = document.getElementById('original-text');
-    switch(currentLanguage) {
-        case 'JAP':
+    const originalText = document.getElementById("original-text");
+    switch (currentLanguage) {
+        case "JAP":
             wrapKanjiCharacters(originalText);
             break;
-        case 'CHN':
+        case "CHN":
             wrapChineseCharacters(originalText);
             break;
-        case 'KOR':
+        case "KOR":
             wrapKoreanCharacters(originalText);
             break;
     }
 }
 
 function wrapKoreanCharacters(element) {
-    element.innerHTML = element.textContent.replace(/([가-힣])/g, '<span class="korean-char">$1</span>');
-    
-    const koreanChars = element.querySelectorAll('.korean-char');
-    koreanChars.forEach(char => {
-      char.addEventListener('mouseenter', handleKoreanHover);
-      char.addEventListener('mouseleave', handleKoreanHoverOut);
-      char.addEventListener('click', handleKoreanClick);
+    element.innerHTML = element.textContent.replace(
+        /([가-힣])/g,
+        '<span class="korean-char">$1</span>'
+    );
+
+    const koreanChars = element.querySelectorAll(".korean-char");
+    koreanChars.forEach((char) => {
+        char.addEventListener("mouseenter", handleKoreanHover);
+        char.addEventListener("mouseleave", handleKoreanHoverOut);
+        char.addEventListener("click", handleKoreanClick);
     });
-  }
-  
-  // Add handler functions for Korean characters
-  function handleKoreanHover(event) {
+}
+
+// Add handler functions for Korean characters
+function handleKoreanHover(event) {
     if (currentHoveredElement !== event.target) {
-      if (currentHoveredElement) {
-        currentHoveredElement.classList.remove('hovered');
-      }
-      currentHoveredElement = event.target;
-      currentHoveredElement.classList.add('hovered');
-      
-      const character = event.target.textContent;
-      isHovering = true;
-      showLoadingIndicator(`Fetching info for ${character}...`);
-      sendMessage({ action: "fetchKoreanInfo", character: character });
+        if (currentHoveredElement) {
+            currentHoveredElement.classList.remove("hovered");
+        }
+        currentHoveredElement = event.target;
+        currentHoveredElement.classList.add("hovered");
+
+        const character = event.target.textContent;
+        isHovering = true;
+        showLoadingIndicator(`Fetching info for ${character}...`);
+        sendMessage({ action: "fetchKoreanInfo", character: character });
     }
-    
+
     const charRect = event.target.getBoundingClientRect();
     kanjiInfoBox.style.top = `${charRect.bottom + 5}px`;
     kanjiInfoBox.style.left = `${charRect.left}px`;
-    kanjiInfoBox.style.transform = 'none';
-  }
-  
-  function handleKoreanHoverOut(event) {
+    kanjiInfoBox.style.transform = "none";
+}
+
+function handleKoreanHoverOut(event) {
     isHovering = false;
     if (currentHoveredElement) {
-      currentHoveredElement.classList.remove('hovered');
+        currentHoveredElement.classList.remove("hovered");
     }
     currentHoveredElement = null;
     setTimeout(() => {
-      if (!isHovering) {
-        kanjiInfoBox.style.display = 'none';
-      }
+        if (!isHovering) {
+            kanjiInfoBox.style.display = "none";
+        }
     }, 100);
-  }
-  
-  function handleKoreanClick(event) {
+}
+
+function handleKoreanClick(event) {
     const character = event.target.textContent;
-    window.open(`https://krdict.korean.go.kr/eng/dicSearch/search?nation=eng&nationCode=6&ParaWordNo=&mainSearchWord=${encodeURIComponent(character)}`, '_blank');
-  }
-  
-  // Add a function to show Korean character info
-  function showKoreanInfo(info) {
+    window.open(
+        `https://krdict.korean.go.kr/eng/dicSearch/search?nation=eng&nationCode=6&ParaWordNo=&mainSearchWord=${encodeURIComponent(
+            character
+        )}`,
+        "_blank"
+    );
+}
+
+// Add a function to show Korean character info
+function showKoreanInfo(info) {
     if (!isHovering) {
-      return;
+        return;
     }
     kanjiInfoBox.innerHTML = `
       <h4>${info.character}</h4>
       <p><strong>Meaning:</strong> ${info.meaning}</p>
       <p><strong>Pronunciation:</strong> ${info.pronunciation}</p>
     `;
-    kanjiInfoBox.style.display = 'block';
-  }
+    kanjiInfoBox.style.display = "block";
+}
 
 function wrapKanjiCharacters(element) {
-    element.innerHTML = element.textContent.replace(/([\u4e00-\u9faf])/g, '<span class="kanji-char">$1</span>');
-    
-    const kanjiChars = element.querySelectorAll('.kanji-char');
-    kanjiChars.forEach(char => {
-        char.addEventListener('mouseenter', handleKanjiHover);
-        char.addEventListener('mouseleave', handleKanjiHoverOut);
-        char.addEventListener('click', handleKanjiClick);
+    element.innerHTML = element.textContent.replace(
+        /([\u4e00-\u9faf])/g,
+        '<span class="kanji-char">$1</span>'
+    );
+
+    const kanjiChars = element.querySelectorAll(".kanji-char");
+    kanjiChars.forEach((char) => {
+        char.addEventListener("mouseenter", handleKanjiHover);
+        char.addEventListener("mouseleave", handleKanjiHoverOut);
+        char.addEventListener("click", handleKanjiClick);
     });
 }
 
 function wrapChineseCharacters(element) {
-    element.innerHTML = element.textContent.replace(/([\u4e00-\u9fff\u3400-\u4dbf])/g, '<span class="chinese-char">$1</span>');
-    
-    const chineseChars = element.querySelectorAll('.chinese-char');
-    chineseChars.forEach(char => {
-        char.addEventListener('mouseenter', handleChineseHover);
-        char.addEventListener('mouseleave', handleChineseHoverOut);
-        char.addEventListener('click', handleChineseClick);
+    element.innerHTML = element.textContent.replace(
+        /([\u4e00-\u9fff\u3400-\u4dbf])/g,
+        '<span class="chinese-char">$1</span>'
+    );
+
+    const chineseChars = element.querySelectorAll(".chinese-char");
+    chineseChars.forEach((char) => {
+        char.addEventListener("mouseenter", handleChineseHover);
+        char.addEventListener("mouseleave", handleChineseHoverOut);
+        char.addEventListener("click", handleChineseClick);
     });
 }
 
 function handleKanjiHover(event) {
     if (currentHoveredElement !== event.target) {
         if (currentHoveredElement) {
-            currentHoveredElement.classList.remove('hovered');
+            currentHoveredElement.classList.remove("hovered");
         }
         currentHoveredElement = event.target;
-        currentHoveredElement.classList.add('hovered');
-        
+        currentHoveredElement.classList.add("hovered");
+
         const kanji = event.target.textContent;
         isHovering = true;
         showLoadingIndicator(`Fetching info for ${kanji}...`);
         sendMessage({ action: "fetchKanjiInfo", kanji: kanji });
     }
-    
+
     const charRect = event.target.getBoundingClientRect();
     kanjiInfoBox.style.top = `${charRect.bottom + 5}px`;
     kanjiInfoBox.style.left = `${charRect.left}px`;
-    kanjiInfoBox.style.transform = 'none';
+    kanjiInfoBox.style.transform = "none";
 }
 
 function handleKanjiHoverOut(event) {
     isHovering = false;
     if (currentHoveredElement) {
-        currentHoveredElement.classList.remove('hovered');
+        currentHoveredElement.classList.remove("hovered");
     }
     currentHoveredElement = null;
     setTimeout(() => {
         if (!isHovering) {
-            kanjiInfoBox.style.display = 'none';
+            kanjiInfoBox.style.display = "none";
         }
     }, 100);
 }
 
 function handleKanjiClick(event) {
     const kanji = event.target.textContent;
-    window.open(`https://jisho.org/search/${encodeURIComponent(kanji)}`, '_blank');
+    window.open(
+        `https://jisho.org/search/${encodeURIComponent(kanji)}`,
+        "_blank"
+    );
 }
 
 function handleChineseHover(event) {
     if (currentHoveredElement !== event.target) {
         if (currentHoveredElement) {
-            currentHoveredElement.classList.remove('hovered');
+            currentHoveredElement.classList.remove("hovered");
         }
         currentHoveredElement = event.target;
-        currentHoveredElement.classList.add('hovered');
-        
+        currentHoveredElement.classList.add("hovered");
+
         const character = event.target.textContent;
         isHovering = true;
         showLoadingIndicator(`Fetching info for ${character}...`);
         sendMessage({ action: "fetchMultiKanjiInfo", kanji: character });
     }
-    
+
     const charRect = event.target.getBoundingClientRect();
     kanjiInfoBox.style.top = `${charRect.bottom + 5}px`;
     kanjiInfoBox.style.left = `${charRect.left}px`;
-    kanjiInfoBox.style.transform = 'none';
+    kanjiInfoBox.style.transform = "none";
 }
 
 function handleChineseHoverOut(event) {
     isHovering = false;
     if (currentHoveredElement) {
-        currentHoveredElement.classList.remove('hovered');
+        currentHoveredElement.classList.remove("hovered");
     }
     currentHoveredElement = null;
     setTimeout(() => {
         if (!isHovering) {
-            kanjiInfoBox.style.display = 'none';
+            kanjiInfoBox.style.display = "none";
         }
     }, 100);
 }
 
 function handleChineseClick(event) {
     const character = event.target.textContent;
-    window.open(`https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${encodeURIComponent(character)}`, '_blank');
+    window.open(
+        `https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${encodeURIComponent(
+            character
+        )}`,
+        "_blank"
+    );
 }
 
 function showKanjiInfo(info) {
@@ -713,13 +743,13 @@ function showKanjiInfo(info) {
         <p><strong>Kun'yomi:</strong> ${info.kunReadings}</p>
         <p><strong>On'yomi:</strong> ${info.onReadings}</p>
     `;
-    kanjiInfoBox.style.display = 'block';
+    kanjiInfoBox.style.display = "block";
 }
 
 let debounceTimer = null;
 
 function debounce(func, delay) {
-    return function() {
+    return function () {
         const context = this;
         const args = arguments;
         clearTimeout(debounceTimer);
@@ -732,12 +762,18 @@ const handleSelectionDebounced = debounce(() => {
     const selectedText = selection.toString().trim();
 
     if (selectedText) {
-        const originalText = document.getElementById('original-text');
-        if (originalText.contains(selection.anchorNode) && originalText.contains(selection.focusNode)) {
+        const originalText = document.getElementById("original-text");
+        if (
+            originalText.contains(selection.anchorNode) &&
+            originalText.contains(selection.focusNode)
+        ) {
             if (selectedText !== currentSelection) {
                 currentSelection = selectedText;
                 showLoadingIndicator(`Fetching info for ${selectedText}...`);
-                sendMessage({ action: "fetchMultiKanjiInfo", kanji: selectedText });
+                sendMessage({
+                    action: "fetchMultiKanjiInfo",
+                    kanji: selectedText,
+                });
             }
         }
     } else {
@@ -746,28 +782,34 @@ const handleSelectionDebounced = debounce(() => {
 }, 150);
 
 function setupMultiKanjiSelection() {
-    const originalText = document.getElementById('original-text');
-    document.addEventListener('selectionchange', handleSelectionDebounced);
-    document.addEventListener('mousedown', handleDocumentClick);
+    const originalText = document.getElementById("original-text");
+    document.addEventListener("selectionchange", handleSelectionDebounced);
+    document.addEventListener("mousedown", handleDocumentClick);
 }
 
 function handleDocumentClick(event) {
-    const resultBox = document.getElementById('result-box');
-    const multiKanjiInfoBox = document.getElementById('multi-kanji-info');
-    if (!resultBox.contains(event.target) && (!multiKanjiInfoBox || !multiKanjiInfoBox.contains(event.target))) {
+    const resultBox = document.getElementById("result-box");
+    const multiKanjiInfoBox = document.getElementById("multi-kanji-info");
+    if (
+        !resultBox.contains(event.target) &&
+        (!multiKanjiInfoBox || !multiKanjiInfoBox.contains(event.target))
+    ) {
         hideMultiKanjiInfo();
     }
 }
 
 function showMultiKanjiInfo(info) {
-    const multiKanjiInfoBox = document.getElementById('multi-kanji-info') || document.createElement('div');
-    multiKanjiInfoBox.id = 'multi-kanji-info';
+    const multiKanjiInfoBox =
+        document.getElementById("multi-kanji-info") ||
+        document.createElement("div");
+    multiKanjiInfoBox.id = "multi-kanji-info";
 
     const title = `${info.kanji}  (Reading: ${info.reading})`;
 
-    const meaningsHtml = info.meanings.split('; ')
+    const meaningsHtml = info.meanings
+        .split("; ")
         .map((meaning, index) => `<p>${index + 1}. ${meaning}</p>`)
-        .join('');
+        .join("");
 
     multiKanjiInfoBox.innerHTML = `
         <h4>${title}</h4>
@@ -777,53 +819,53 @@ function showMultiKanjiInfo(info) {
     `;
 
     document.body.appendChild(multiKanjiInfoBox);
-    multiKanjiInfoBox.style.display = 'block';
+    multiKanjiInfoBox.style.display = "block";
 
-    const resultBox = document.getElementById('result-box');
+    const resultBox = document.getElementById("result-box");
     const resultBoxRect = resultBox.getBoundingClientRect();
-    
-    multiKanjiInfoBox.style.top = `${resultBoxRect.bottom + 10}px`;
-    multiKanjiInfoBox.style.left = '50%';
-    multiKanjiInfoBox.style.transform = 'translateX(-50%)';
 
-    multiKanjiInfoBox.style.width = 'auto';
-    multiKanjiInfoBox.style.minWidth = '200px';
-    multiKanjiInfoBox.style.maxWidth = '400px';
+    multiKanjiInfoBox.style.top = `${resultBoxRect.bottom + 10}px`;
+    multiKanjiInfoBox.style.left = "50%";
+    multiKanjiInfoBox.style.transform = "translateX(-50%)";
+
+    multiKanjiInfoBox.style.width = "auto";
+    multiKanjiInfoBox.style.minWidth = "200px";
+    multiKanjiInfoBox.style.maxWidth = "400px";
 }
 
 function hideMultiKanjiInfo() {
-    const multiKanjiInfoBox = document.getElementById('multi-kanji-info');
+    const multiKanjiInfoBox = document.getElementById("multi-kanji-info");
     if (multiKanjiInfoBox) {
-        multiKanjiInfoBox.style.display = 'none';
+        multiKanjiInfoBox.style.display = "none";
     }
     currentSelection = null;
 }
 
 function setupCloseButton() {
-    const closeButton = document.getElementById('close-button');
-    closeButton.addEventListener('click', function() {
-        resultBox.style.display = 'none';
+    const closeButton = document.getElementById("close-button");
+    closeButton.addEventListener("click", function () {
+        resultBox.style.display = "none";
         removeOverlay();
     });
 }
 
 function setupTranslationButtons() {
-    const googleButton = document.getElementById('google-translate');
-    const deeplButton = document.getElementById('deepl-translate');
+    const googleButton = document.getElementById("google-translate");
+    const deeplButton = document.getElementById("deepl-translate");
 
-    googleButton.addEventListener('click', function() {
-        if (currentTranslationService !== 'google') {
-            currentTranslationService = 'google';
-            chrome.storage.sync.set({ currentTranslationService: 'google' });
+    googleButton.addEventListener("click", function () {
+        if (currentTranslationService !== "google") {
+            currentTranslationService = "google";
+            chrome.storage.sync.set({ currentTranslationService: "google" });
             updateTranslationButtons();
             retranslate();
         }
     });
 
-    deeplButton.addEventListener('click', function() {
-        if (currentTranslationService !== 'deepl') {
-            currentTranslationService = 'deepl';
-            chrome.storage.sync.set({ currentTranslationService: 'deepl' });
+    deeplButton.addEventListener("click", function () {
+        if (currentTranslationService !== "deepl") {
+            currentTranslationService = "deepl";
+            chrome.storage.sync.set({ currentTranslationService: "deepl" });
             updateTranslationButtons();
             retranslate();
         }
@@ -831,26 +873,34 @@ function setupTranslationButtons() {
 }
 
 function updateTranslationButtons() {
-    const googleButton = document.getElementById('google-translate');
-    const deeplButton = document.getElementById('deepl-translate');
-    
-    googleButton.classList.toggle('active', currentTranslationService === 'google');
-    deeplButton.classList.toggle('active', currentTranslationService === 'deepl');
+    const googleButton = document.getElementById("google-translate");
+    const deeplButton = document.getElementById("deepl-translate");
+
+    googleButton.classList.toggle(
+        "active",
+        currentTranslationService === "google"
+    );
+    deeplButton.classList.toggle(
+        "active",
+        currentTranslationService === "deepl"
+    );
 }
 
 function retranslate() {
     if (lastOCRText) {
-        showLoadingIndicator(`Translating with ${currentTranslationService}...`);
-        sendMessage({ 
-            action: "translate", 
-            text: lastOCRText, 
+        showLoadingIndicator(
+            `Translating with ${currentTranslationService}...`
+        );
+        sendMessage({
+            action: "translate",
+            text: lastOCRText,
             service: currentTranslationService,
-            language: currentLanguage
+            language: currentLanguage,
         });
     }
 }
 
-let lastUrl = location.href; 
+let lastUrl = location.href;
 new MutationObserver(() => {
     const url = location.href;
     if (url !== lastUrl) {
@@ -858,16 +908,16 @@ new MutationObserver(() => {
         hideAllInfoDisplays();
         removeOverlay();
     }
-}).observe(document, {subtree: true, childList: true});
+}).observe(document, { subtree: true, childList: true });
 
 function hideAllInfoDisplays() {
-    resultBox.style.display = 'none';
+    resultBox.style.display = "none";
     hideLoadingIndicator();
     hideMultiKanjiInfo();
     removeOverlay();
 }
 
-document.addEventListener('visibilitychange', function() {
+document.addEventListener("visibilitychange", function () {
     if (document.hidden) {
         hideAllInfoDisplays();
         removeOverlay();
@@ -875,7 +925,7 @@ document.addEventListener('visibilitychange', function() {
 });
 
 // Listen for messages from popup
-chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
     if (request.action === "toggleExtension") {
         isExtensionEnabled = request.isEnabled;
         if (!isExtensionEnabled) {
@@ -888,7 +938,10 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         if (!isOverlayEnabled) {
             removeOverlay(); // Hide overlay when it's disabled
         } else if (lastOCRText) {
-            displayResults(lastOCRText, document.getElementById('translated-text').textContent);
+            displayResults(
+                lastOCRText,
+                document.getElementById("translated-text").textContent
+            );
         }
     }
 });
@@ -898,27 +951,27 @@ let currentOverlay = null;
 let initialScrollY = 0;
 
 function displayOverlay(translatedText) {
-    const existingOverlay = document.getElementById('translation-overlay');
+    const existingOverlay = document.getElementById("translation-overlay");
 
     if (existingOverlay) {
         // Update the text content if overlay already exists
-        existingOverlay.querySelector('div').textContent = translatedText;
+        existingOverlay.querySelector("div").textContent = translatedText;
     } else {
         // Create a new overlay if it doesn't exist
-        const overlay = document.createElement('div');
-        overlay.id = 'translation-overlay';
-        overlay.style.position = 'absolute';
-        overlay.style.zIndex = '1000';
-        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-        overlay.style.color = 'black';
-        overlay.style.padding = '5px';
-        overlay.style.boxShadow = '0 0 5px rgba(0,0,0,0.3)';
-        overlay.style.fontSize = '14px';
-        overlay.style.wordBreak = 'break-word';
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-        overlay.style.textAlign = 'center';
+        const overlay = document.createElement("div");
+        overlay.id = "translation-overlay";
+        overlay.style.position = "absolute";
+        overlay.style.zIndex = "1000";
+        overlay.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
+        overlay.style.color = "black";
+        overlay.style.padding = "5px";
+        overlay.style.boxShadow = "0 0 5px rgba(0,0,0,0.3)";
+        overlay.style.fontSize = "14px";
+        overlay.style.wordBreak = "break-word";
+        overlay.style.display = "flex";
+        overlay.style.alignItems = "center";
+        overlay.style.justifyContent = "center";
+        overlay.style.textAlign = "center";
         document.body.appendChild(overlay);
 
         // Use the stored selection coordinates
@@ -927,7 +980,7 @@ function displayOverlay(translatedText) {
         overlay.style.width = `${finalSelectionCoords.width}px`;
         overlay.style.height = `${finalSelectionCoords.height}px`;
 
-        const textElement = document.createElement('div');
+        const textElement = document.createElement("div");
         textElement.textContent = translatedText;
         overlay.appendChild(textElement);
 
@@ -938,7 +991,6 @@ function displayOverlay(translatedText) {
         initialScrollY = window.scrollY;
     }
 }
-
 
 function removeOverlay() {
     if (currentOverlay) {
@@ -953,12 +1005,15 @@ function updateOverlayPosition() {
     if (currentOverlay) {
         const scrollDifference = window.scrollY - initialScrollY;
         const newTop = initialOverlayTop - scrollDifference;
-        
+
         // Constrain the overlay to stay within the viewport
         const minTop = 0;
         const maxTop = window.innerHeight - currentOverlay.offsetHeight;
-        
-        currentOverlay.style.top = `${Math.max(minTop, Math.min(newTop, maxTop))}px`;
+
+        currentOverlay.style.top = `${Math.max(
+            minTop,
+            Math.min(newTop, maxTop)
+        )}px`;
     }
 }
 
@@ -966,17 +1021,27 @@ function adjustFontSize(textElement, container) {
     let fontSize = 14;
     textElement.style.fontSize = `${fontSize}px`;
 
-    while (textElement.scrollHeight > container.clientHeight || textElement.scrollWidth > container.clientWidth) {
+    while (
+        textElement.scrollHeight > container.clientHeight ||
+        textElement.scrollWidth > container.clientWidth
+    ) {
         fontSize--;
         if (fontSize < 8) break; // Minimum font size
         textElement.style.fontSize = `${fontSize}px`;
     }
 }
 
-chrome.storage.sync.get(['extensionEnabled', 'currentTranslationService', 'currentLanguage', 'overlayEnabled'], (data) => {
-    isExtensionEnabled = data.extensionEnabled !== false;
-    currentTranslationService = data.currentTranslationService || 'google';
-    currentLanguage = data.currentLanguage || 'JAP';
-    isOverlayEnabled = data.overlayEnabled === true;
-    console.log('Overlay enabled:', isOverlayEnabled);
-});
+chrome.storage.sync.get(
+    [
+        "extensionEnabled",
+        "currentTranslationService",
+        "currentLanguage",
+        "overlayEnabled",
+    ],
+    (data) => {
+        isExtensionEnabled = data.extensionEnabled !== false;
+        currentTranslationService = data.currentTranslationService || "google";
+        currentLanguage = data.currentLanguage || "JAP";
+        isOverlayEnabled = data.overlayEnabled === true;
+    }
+);
