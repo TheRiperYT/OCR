@@ -831,8 +831,8 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
 });
 
+let scrollOffset = 0;
 let currentOverlay = null;
-let initialOverlayTop = 0;
 let initialScrollY = 0;
 
 function displayOverlay(originalText, translatedText) {
@@ -840,7 +840,7 @@ function displayOverlay(originalText, translatedText) {
 
     const overlay = document.createElement('div');
     overlay.id = 'translation-overlay';
-    overlay.style.position = 'absolute';
+    overlay.style.position = 'absolute'; // Changed to 'absolute'
     overlay.style.zIndex = '1000000';
     overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
     overlay.style.color = 'black';
@@ -856,8 +856,7 @@ function displayOverlay(originalText, translatedText) {
 
     // Use the stored selection coordinates
     overlay.style.left = `${finalSelectionCoords.left}px`;
-    initialOverlayTop = finalSelectionCoords.top + window.scrollY;
-    overlay.style.top = `${initialOverlayTop}px`;
+    overlay.style.top = `${finalSelectionCoords.top + window.scrollY}px`; // Add current scroll position
     overlay.style.width = `${finalSelectionCoords.width}px`;
     overlay.style.height = `${finalSelectionCoords.height}px`;
 
@@ -870,7 +869,7 @@ function displayOverlay(originalText, translatedText) {
 
     currentOverlay = overlay;
     initialScrollY = window.scrollY;
-    updateOverlayPosition();
+    updateOverlay();
 }
 
 function removeOverlay() {
@@ -878,7 +877,7 @@ function removeOverlay() {
         currentOverlay.remove();
         currentOverlay = null;
     }
-    initialOverlayTop = 0;
+    scrollOffset = 0;
     initialScrollY = 0;
 }
 
@@ -895,7 +894,13 @@ function updateOverlayPosition() {
     }
 }
 
-window.addEventListener('scroll', updateOverlayPosition);
+// Add event listener for scroll events
+window.addEventListener('scroll', function() {
+    if (currentOverlay) {
+        scrollOffset = window.scrollY - initialScrollY;
+        updateOverlay();
+    }
+});
 
 function adjustFontSize(textElement, container) {
     let fontSize = 14;
