@@ -413,7 +413,7 @@ function displayResults(original, translated) {
     setupMultiKanjiSelection();
 
     if (isOverlayEnabled) {
-        displayOverlay(original, translated);
+        displayOverlay(translated);
     } else {
         removeOverlay();
     }
@@ -835,42 +835,48 @@ let scrollOffset = 0;
 let currentOverlay = null;
 let initialScrollY = 0;
 
-function displayOverlay(originalText, translatedText) {
-    removeOverlay(); // Remove any existing overlay
+function displayOverlay(translatedText) {
+    const existingOverlay = document.getElementById('translation-overlay');
 
-    const overlay = document.createElement('div');
-    overlay.id = 'translation-overlay';
-    overlay.style.position = 'absolute'; // Changed to 'absolute'
-    overlay.style.zIndex = '1000000';
-    overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
-    overlay.style.color = 'black';
-    overlay.style.padding = '5px';
-    overlay.style.boxShadow = '0 0 5px rgba(0,0,0,0.3)';
-    overlay.style.fontSize = '14px';
-    overlay.style.wordBreak = 'break-word';
-    overlay.style.display = 'flex';
-    overlay.style.alignItems = 'center';
-    overlay.style.justifyContent = 'center';
-    overlay.style.textAlign = 'center';
-    document.body.appendChild(overlay);
+    if (existingOverlay) {
+        // Update the text content if overlay already exists
+        existingOverlay.querySelector('div').textContent = translatedText;
+    } else {
+        // Create a new overlay if it doesn't exist
+        const overlay = document.createElement('div');
+        overlay.id = 'translation-overlay';
+        overlay.style.position = 'absolute';
+        overlay.style.zIndex = '1000';
+        overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        overlay.style.color = 'black';
+        overlay.style.padding = '5px';
+        overlay.style.boxShadow = '0 0 5px rgba(0,0,0,0.3)';
+        overlay.style.fontSize = '14px';
+        overlay.style.wordBreak = 'break-word';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.textAlign = 'center';
+        document.body.appendChild(overlay);
 
-    // Use the stored selection coordinates
-    overlay.style.left = `${finalSelectionCoords.left}px`;
-    overlay.style.top = `${finalSelectionCoords.top + window.scrollY}px`; // Add current scroll position
-    overlay.style.width = `${finalSelectionCoords.width}px`;
-    overlay.style.height = `${finalSelectionCoords.height}px`;
+        // Use the stored selection coordinates
+        overlay.style.left = `${finalSelectionCoords.left}px`;
+        overlay.style.top = `${finalSelectionCoords.top + window.scrollY}px`;
+        overlay.style.width = `${finalSelectionCoords.width}px`;
+        overlay.style.height = `${finalSelectionCoords.height}px`;
 
-    const textElement = document.createElement('div');
-    textElement.textContent = translatedText;
-    overlay.appendChild(textElement);
+        const textElement = document.createElement('div');
+        textElement.textContent = translatedText;
+        overlay.appendChild(textElement);
 
-    // Adjust font size if text is too large for the overlay
-    adjustFontSize(textElement, overlay);
+        // Adjust font size if text is too large for the overlay
+        adjustFontSize(textElement, overlay);
 
-    currentOverlay = overlay;
-    initialScrollY = window.scrollY;
-    updateOverlay();
+        currentOverlay = overlay;
+        initialScrollY = window.scrollY;
+    }
 }
+
 
 function removeOverlay() {
     if (currentOverlay) {
@@ -893,14 +899,6 @@ function updateOverlayPosition() {
         currentOverlay.style.top = `${Math.max(minTop, Math.min(newTop, maxTop))}px`;
     }
 }
-
-// Add event listener for scroll events
-window.addEventListener('scroll', function() {
-    if (currentOverlay) {
-        scrollOffset = window.scrollY - initialScrollY;
-        updateOverlay();
-    }
-});
 
 function adjustFontSize(textElement, container) {
     let fontSize = 14;
