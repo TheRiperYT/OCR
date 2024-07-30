@@ -237,6 +237,8 @@ function handleKeyDown(e) {
 function handleMouseDown(e) {
     if (!isExtensionEnabled) return;
     if (e.button === 1) { // Middle mouse button
+        resultBox.style.display = 'none';
+        removeOverlay();
         showOverlay();
     } else if (e.button === 0 && overlay.style.display === 'block') { // Left mouse button when overlay is visible
         startSelection(e);
