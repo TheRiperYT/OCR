@@ -752,19 +752,23 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
 });
 
+let currentOverlay = null;
+let initialOverlayTop = 0;
+let initialScrollY = 0;
+
 function displayOverlay(originalText, translatedText) {
     removeOverlay(); // Remove any existing overlay
 
     const overlay = document.createElement('div');
     overlay.id = 'translation-overlay';
-    overlay.style.position = 'fixed';
+    overlay.style.position = 'absolute';
     overlay.style.zIndex = '1000000';
-    overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)'; // Slightly transparent white
+    overlay.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
     overlay.style.color = 'black';
     overlay.style.padding = '5px';
     overlay.style.boxShadow = '0 0 5px rgba(0,0,0,0.3)';
     overlay.style.fontSize = '14px';
-    overlay.style.wordWrap = 'break-word';
+    overlay.style.wordBreak = 'break-word';
     overlay.style.display = 'flex';
     overlay.style.alignItems = 'center';
     overlay.style.justifyContent = 'center';
@@ -773,7 +777,8 @@ function displayOverlay(originalText, translatedText) {
 
     // Use the stored selection coordinates
     overlay.style.left = `${finalSelectionCoords.left}px`;
-    overlay.style.top = `${finalSelectionCoords.top}px`;
+    initialOverlayTop = finalSelectionCoords.top + window.scrollY;
+    overlay.style.top = `${initialOverlayTop}px`;
     overlay.style.width = `${finalSelectionCoords.width}px`;
     overlay.style.height = `${finalSelectionCoords.height}px`;
 
@@ -783,7 +788,40 @@ function displayOverlay(originalText, translatedText) {
 
     // Adjust font size if text is too large for the overlay
     adjustFontSize(textElement, overlay);
+
+    currentOverlay = overlay;
+    initialScrollY = window.scrollY;
+    updateOverlayPosition();
 }
+
+function removeOverlay() {
+    if (currentOverlay) {
+        currentOverlay.remove();
+        currentOverlay = null;
+    }
+    initialOverlayTop = 0;
+    initialScrollY = 0;
+}
+
+function updateOverlayPosition() {
+    if (currentOverlay) {
+        const scrollDifference = window.scrollY - initialScrollY;
+        const newTop = initialOverlayTop - scrollDifference;
+        
+        // Constrain the overlay to stay within the viewport
+        const minTop = 0;
+        const maxTop = window.innerHeight - currentOverlay.offsetHeight;
+        
+        currentOverlay.style.top = `${Math.max(minTop, Math.min(newTop, maxTop))}px`;
+    }
+}
+
+window.addEventListener('scroll', function() {
+    if (currentOverlay) {
+        scrollOffset = window.scrollY - initialScrollY;
+        updateOverlay();
+    }
+});
 
 function adjustFontSize(textElement, container) {
     let fontSize = 14;
@@ -793,14 +831,6 @@ function adjustFontSize(textElement, container) {
         fontSize--;
         if (fontSize < 8) break; // Minimum font size
         textElement.style.fontSize = `${fontSize}px`;
-    }
-}
-
-function removeOverlay() {
-    const existingOverlay = document.getElementById('translation-overlay');
-    if (existingOverlay) {
-        existingOverlay.remove();
-        existingOverlay.style.display = 'none';
     }
 }
 

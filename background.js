@@ -71,7 +71,7 @@ function cropImage(dataUrl, area, language, sendResponse) {
 function performOCR(image, language, sendResponse) {
   console.log(`Background: Starting OCR process for ${language}...`);
   const apiKey = OCR_API_KEY;
-  const languageCode = language === 'CHN' ? 'cht' : 'jpn'; // 'chs' - Simplified Chinese, 'cht' - Traditional Chinese, 'jpn' for Japanese
+  const languageCode = language === 'CHN' ? 'cht' : (language === 'KOR' ? 'kor' : 'jpn');  // 'chs' - Simplified Chinese, 'cht' - Traditional Chinese, 'jpn' for Japanese, 'kor' for Korean
   
   fetch('https://api.ocr.space/parse/image', {
     method: 'POST',
@@ -141,7 +141,7 @@ function translateText(text, service, sourceLanguage, sendResponse) {
 }
 
 function translateWithGoogle(text, sourceLanguage, sendResponse) {
-  const sourceLang = sourceLanguage === 'CHN' ? 'zh-CN' : 'ja';
+  const sourceLang = sourceLanguage === 'CHN' ? 'zh-CN' : (sourceLanguage === 'KOR' ? 'ko' : 'ja');
   const googleTranslateUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=en&dt=t&q=${encodeURIComponent(text)}`;
 
   fetch(googleTranslateUrl)
@@ -177,7 +177,7 @@ function translateWithGoogle(text, sourceLanguage, sendResponse) {
 function translateWithDeepL(text, sourceLanguage, sendResponse) {
   const DEEPL_API_KEY = deepL_API_KEY;
   const deeplUrl = 'https://api-free.deepl.com/v2/translate';
-  const sourceLang = sourceLanguage === 'CHN' ? 'ZH' : 'JA';
+  const sourceLang = sourceLanguage === 'CHN' ? 'ZH' : (sourceLanguage === 'KOR' ? 'KO' : 'JA');
   const data = `auth_key=${DEEPL_API_KEY}&text=${encodeURIComponent(text)}&source_lang=${sourceLang}&target_lang=EN`;
 
   console.log('Background: Sending request to DeepL');
