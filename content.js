@@ -192,16 +192,11 @@ const styles = `
     #language-toggle {
         margin-left: 10px;
         padding: 5px 10px;
-        background-color: #808080;
         color: white;
         border: none;
         border-radius: 4px;
         cursor: pointer;
         font-size: 14px;
-    }
-
-    #language-toggle.active {
-        background-color: #4CAF50;
     }
 `;
 
@@ -411,9 +406,9 @@ function displayResults(original, translated) {
 
     setupCloseButton();
     setupTranslationButtons();
-    setupKanjiHover();
-    setupMultiKanjiSelection();
     setupLanguageToggle();
+    setupCharacterHover();
+    setupMultiKanjiSelection();
 
     if (isOverlayEnabled) {
         displayOverlay(original, translated);
@@ -424,45 +419,127 @@ function displayResults(original, translated) {
 
 function setupLanguageToggle() {
     const languageToggle = document.getElementById('language-toggle');
-    languageToggle.addEventListener('click', function() {
-        const newLanguage = currentLanguage === 'JAP' ? 'CHN' : 'JAP';
-        changeLanguage(newLanguage);
-    });
-}
+    const languages = ['JAP', 'CHN', 'KOR'];
+    const colors = {
+        'JAP': '#4CAF50',  // Green
+        'CHN': '#F44336',  // Red
+        'KOR': '#3498db'   // Blue
+    };
+    let currentIndex = languages.indexOf(currentLanguage);
 
-// Add a new function to handle language change
-function changeLanguage(newLanguage) {
-    currentLanguage = newLanguage;
-    const languageToggle = document.getElementById('language-toggle');
-    languageToggle.textContent = currentLanguage;
-    languageToggle.classList.toggle('active', currentLanguage === 'CHN');
-    
-    // Save the language preference
-    chrome.storage.sync.set({ currentLanguage: currentLanguage });
-    
-    // Retranslate the text
-    if (lastOCRText) {
-        showLoadingIndicator(`Translating with ${currentTranslationService}...`);
-        sendMessage({ 
-            action: "translate", 
-            text: lastOCRText, 
-            service: currentTranslationService,
-            language: currentLanguage
-        });
+    function updateLanguageDisplay() {
+        languageToggle.textContent = currentLanguage;
+        languageToggle.style.backgroundColor = colors[currentLanguage];
+        languageToggle.style.color = 'white';
+        languageToggle.style.transition = 'background-color 0.3s ease';
     }
-    
-    // Update the character wrapping
-    setupKanjiHover();
+
+    function changeLanguage() {
+        currentIndex = (currentIndex + 1) % languages.length;
+        currentLanguage = languages[currentIndex];
+        
+        updateLanguageDisplay();
+        
+        // Save the language preference
+        chrome.storage.sync.set({ currentLanguage: currentLanguage });
+        
+        // Retranslate the text
+        if (lastOCRText) {
+            showLoadingIndicator(`Translating with ${currentTranslationService}...`);
+            sendMessage({ 
+                action: "translate", 
+                text: lastOCRText, 
+                service: currentTranslationService,
+                language: currentLanguage
+            });
+        }
+        
+        // Update the character wrapping
+        setupCharacterHover();
+    }
+
+    updateLanguageDisplay();  // Initial display update
+
+    languageToggle.addEventListener('click', changeLanguage);
 }
 
-function setupKanjiHover() {
+function setupCharacterHover() {
     const originalText = document.getElementById('original-text');
-    if (currentLanguage === 'JAP') {
-        wrapKanjiCharacters(originalText);
-    } else {
-        wrapChineseCharacters(originalText);
+    switch(currentLanguage) {
+        case 'JAP':
+            wrapKanjiCharacters(originalText);
+            break;
+        case 'CHN':
+            wrapChineseCharacters(originalText);
+            break;
+        case 'KOR':
+            wrapKoreanCharacters(originalText);
+            break;
     }
 }
+
+function wrapKoreanCharacters(element) {
+    element.innerHTML = element.textContent.replace(/([가-힣])/g, '<span class="korean-char">$1</span>');
+    
+    const koreanChars = element.querySelectorAll('.korean-char');
+    koreanChars.forEach(char => {
+      char.addEventListener('mouseenter', handleKoreanHover);
+      char.addEventListener('mouseleave', handleKoreanHoverOut);
+      char.addEventListener('click', handleKoreanClick);
+    });
+  }
+  
+  // Add handler functions for Korean characters
+  function handleKoreanHover(event) {
+    if (currentHoveredElement !== event.target) {
+      if (currentHoveredElement) {
+        currentHoveredElement.classList.remove('hovered');
+      }
+      currentHoveredElement = event.target;
+      currentHoveredElement.classList.add('hovered');
+      
+      const character = event.target.textContent;
+      isHovering = true;
+      showLoadingIndicator(`Fetching info for ${character}...`);
+      sendMessage({ action: "fetchKoreanInfo", character: character });
+    }
+    
+    const charRect = event.target.getBoundingClientRect();
+    kanjiInfoBox.style.top = `${charRect.bottom + 5}px`;
+    kanjiInfoBox.style.left = `${charRect.left}px`;
+    kanjiInfoBox.style.transform = 'none';
+  }
+  
+  function handleKoreanHoverOut(event) {
+    isHovering = false;
+    if (currentHoveredElement) {
+      currentHoveredElement.classList.remove('hovered');
+    }
+    currentHoveredElement = null;
+    setTimeout(() => {
+      if (!isHovering) {
+        kanjiInfoBox.style.display = 'none';
+      }
+    }, 100);
+  }
+  
+  function handleKoreanClick(event) {
+    const character = event.target.textContent;
+    window.open(`https://krdict.korean.go.kr/eng/dicSearch/search?nation=eng&nationCode=6&ParaWordNo=&mainSearchWord=${encodeURIComponent(character)}`, '_blank');
+  }
+  
+  // Add a function to show Korean character info
+  function showKoreanInfo(info) {
+    if (!isHovering) {
+      return;
+    }
+    kanjiInfoBox.innerHTML = `
+      <h4>${info.character}</h4>
+      <p><strong>Meaning:</strong> ${info.meaning}</p>
+      <p><strong>Pronunciation:</strong> ${info.pronunciation}</p>
+    `;
+    kanjiInfoBox.style.display = 'block';
+  }
 
 function wrapKanjiCharacters(element) {
     element.innerHTML = element.textContent.replace(/([\u4e00-\u9faf])/g, '<span class="kanji-char">$1</span>');
@@ -816,12 +893,7 @@ function updateOverlayPosition() {
     }
 }
 
-window.addEventListener('scroll', function() {
-    if (currentOverlay) {
-        scrollOffset = window.scrollY - initialScrollY;
-        updateOverlay();
-    }
-});
+window.addEventListener('scroll', updateOverlayPosition);
 
 function adjustFontSize(textElement, container) {
     let fontSize = 14;
