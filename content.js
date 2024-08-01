@@ -256,6 +256,7 @@ function handleKeyDown(e) {
 function handleMouseDown(e) {
     if (!isExtensionEnabled) return;
     if (e.button === 1) { // Middle mouse button
+        e.preventDefault(); // Prevent default middle-click behavior
         resultBox.style.display = 'none';
         removeOverlay();
         showOverlay();
@@ -269,6 +270,7 @@ function showOverlay() {
     overlay.style.clipPath = 'none';
     clearSelection();
     escMessage.style.display = 'block';
+    document.body.style.userSelect = 'none'; // Prevent text selection
 }
 
 document.addEventListener('keydown', handleKeyDown);
@@ -352,6 +354,7 @@ function endSelection(e) {
     captureSelection();
     overlay.style.display = 'none';
     clearSelection();
+    document.body.style.userSelect = ''; // Re-enable text selection
 }
 
 document.addEventListener('keydown', function(e) {
