@@ -275,8 +275,8 @@ function showOverlay() {
 
 document.addEventListener('keydown', handleKeyDown);
 document.addEventListener('mousedown', handleMouseDown);
-overlay.addEventListener('mousemove', updateSelection);
-overlay.addEventListener('mouseup', endSelection);
+document.addEventListener('mousemove', updateSelection);
+document.addEventListener('mouseup', endSelection);
 
 function startSelection(e) {
     isSelecting = true;
