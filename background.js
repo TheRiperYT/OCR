@@ -87,6 +87,7 @@ function performOCR(image, language, sendResponse) {
     if (data.ParsedResults && data.ParsedResults.length > 0) {
       let text = data.ParsedResults[0].ParsedText;
       text = cleanOCRText(text, language);
+      if (language === 'CHN') text = reorderText(text);
       console.log('Background: OCR Result:', text);
       if (text.trim() === '') {
         throw new Error("OCR result is empty");
@@ -108,6 +109,13 @@ function performOCR(image, language, sendResponse) {
       details: error.message
     });
   });
+}
+
+function reorderText(text){
+  let phrases = text.split(' ');
+  phrases.reverse();
+  text = phrases.join('');
+  return text;
 }
 
 function cleanOCRText(text, language) {
