@@ -16,12 +16,21 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js", "lib/tesseract.min.js"]
     }
   ],
+  "web_accessible_resources": [{
+    "resources": [
+      "lib/*"
+    ],
+    "matches": ["<all_urls>"]
+  }],
   "action": {
     "default_popup": "popup.html"
   },
