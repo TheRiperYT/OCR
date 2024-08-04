@@ -5,7 +5,7 @@ let lastOCRText = '';
 let isHovering = false;
 let currentHoveredElement = null;
 let currentSelection = null;
-let currentLanguage = 'JAP';
+let currentLanguage = 'jap';
 let isExtensionEnabled = true;
 let lastOverlayData = null;
 let tesseractWorker = null;
@@ -404,7 +404,7 @@ function handleResponse(response) {
         hideLoadingIndicator();
         displayResults(response.originalText, response.translatedText);
         const languageToggle = document.getElementById('language-toggle');
-        languageToggle.classList.toggle('active', currentLanguage === 'CHN');
+        //languageToggle.classList.toggle('active', currentLanguage === 'chn');
     } else if (response.action === "translationError") {
         console.error('Content script: Translation Error:', response.error);
         hideLoadingIndicator();
@@ -515,11 +515,11 @@ function displayResults(original, translated) {
 
 function setupLanguageToggle() {
     const languageToggle = document.getElementById('language-toggle');
-    const languages = ['JAP', 'CHN', 'KOR'];
+    const languages = ['jap', 'chn', 'kor'];
     const colors = {
-        'JAP': '#4CAF50',  // Green
-        'CHN': '#F44336',  // Red
-        'KOR': '#3498db'   // Blue
+        'jap': '#4CAF50',  // Green
+        'chn': '#F44336',  // Red
+        'kor': '#3498db'   // Blue
     };
     let currentIndex = languages.indexOf(currentLanguage);
 
@@ -562,13 +562,13 @@ function setupLanguageToggle() {
 function setupCharacterHover() {
     const originalText = document.getElementById('original-text');
     switch(currentLanguage) {
-        case 'JAP':
+        case 'jap':
             wrapKanjiCharacters(originalText);
             break;
-        case 'CHN':
+        case 'chn':
             wrapChineseCharacters(originalText);
             break;
-        case 'KOR':
+        case 'kor':
             wrapKoreanCharacters(originalText);
             break;
     }
@@ -1113,7 +1113,7 @@ function adjustFontSize(textElement, container) {
 chrome.storage.sync.get(['extensionEnabled', 'currentTranslationService', 'currentLanguage', 'overlayEnabled'], (data) => {
     isExtensionEnabled = data.extensionEnabled !== false;
     currentTranslationService = data.currentTranslationService || 'google';
-    currentLanguage = data.currentLanguage || 'JAP';
+    currentLanguage = data.currentLanguage || 'jap';
     isOverlayEnabled = data.overlayEnabled === true;
     console.log('Overlay enabled:', isOverlayEnabled);
 });
