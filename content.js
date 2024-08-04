@@ -9,6 +9,7 @@ let currentLanguage = 'jap';
 let isExtensionEnabled = true;
 let lastOverlayData = null;
 let tesseractWorker = null;
+let isVertical = false;
 
 const styles = `
     #ocr-overlay {
@@ -488,7 +489,10 @@ function hideLoadingIndicator() {
 
 function displayResults(original, translated) {
     resultBox.innerHTML = `
-        <h3>Original Text: <button id="language-toggle">${currentLanguage}</button></h3>
+        <h3>Original Text: 
+            <button id="language-toggle">${currentLanguage}</button>
+            <button id="vertical-toggle">${isVertical ? 'Vertical' : 'Horizontal'}</button>
+        </h3>
         <p id="original-text">${original}</p>
         <h3>Translated Text:</h3>
         <div>
@@ -503,6 +507,7 @@ function displayResults(original, translated) {
     setupCloseButton();
     setupTranslationButtons();
     setupLanguageToggle();
+    setupVerticalToggle();
     setupCharacterHover();
     setupMultiKanjiSelection();
 
@@ -535,28 +540,63 @@ function setupLanguageToggle() {
         currentLanguage = languages[currentIndex];
         
         updateLanguageDisplay();
+        updateLanguageSettings();
+    }
+
+    languageToggle.addEventListener('click', changeLanguage);
+    updateLanguageDisplay();  // Initial display update
+}
+
+function setupVerticalToggle() {
+    const verticalToggle = document.getElementById('vertical-toggle');
+
+    function toggleVertical() {
+        isVertical = !isVertical;
+        updateVerticalToggle();
+        updateLanguageSettings();
+    }
+
+    verticalToggle.addEventListener('click', toggleVertical);
+    updateVerticalToggle();  // Initial display update
+}
+
+function updateVerticalToggle() {
+    const verticalToggle = document.getElementById('vertical-toggle');
+    if (verticalToggle) {
+        verticalToggle.textContent = isVertical ? 'Vertical' : 'Horizontal';
+        verticalToggle.style.backgroundColor = isVertical ? '#9C27B0' : '#2196F3';
+        verticalToggle.style.color = 'white';
+        verticalToggle.style.transition = 'background-color 0.3s ease';
+    }
+}
+
+function updateLanguageSettings() {
+    console.log('Updating language settings:', currentLanguage, isVertical);
+    
+    // Save the language and vertical preferences
+    chrome.storage.sync.set({ 
+        currentLanguage: currentLanguage,
+        isVertical: isVertical
+    }, async () => {
+        console.log('Language settings saved');
         
-        // Save the language preference
-        chrome.storage.sync.set({ currentLanguage: currentLanguage });
+        // Update UI elements
+        updateVerticalToggle();
         
-        // Retranslate the text
+        // Always reinitialize Tesseract worker
+        await initializeTesseract();
+        
+        // Retranslate the text if available
         if (lastOCRText) {
-            showLoadingIndicator(`Translating with ${currentTranslationService}...`);
-            sendMessage({ 
-                action: "translate", 
-                text: lastOCRText, 
-                service: currentTranslationService,
-                language: currentLanguage
-            });
+            showLoadingIndicator(`Processing with ${currentLanguage}${isVertical ? ' (Vertical)' : ''}...`);
+            await processImageWithTesseract(lastOverlayData);
+        } else {
+            console.log('No OCR text available for reprocessing');
         }
         
         // Update the character wrapping
         setupCharacterHover();
-    }
-
-    updateLanguageDisplay();  // Initial display update
-
-    languageToggle.addEventListener('click', changeLanguage);
+    });
 }
 
 function setupCharacterHover() {
@@ -927,15 +967,6 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
     }
 });
 
-const CONSTANTS = {
-    workerLanguage: ['chi_tra_vert'],
-    progressBarId: "image-to-text-progress-bar",
-    loadingMessageId: "loadingMessage",
-    workerPath: "lib/worker.min.js",
-    corePath: "lib/tesseract-core-simd-lstm.wasm.js",
-    langPath: "languages/"
-  };
-
 async function initializeTesseract() {
     if (tesseractWorker) return;
   
@@ -959,30 +990,29 @@ async function initializeTesseract() {
     });
   }
   
-  async function createWorker() {
-    const selectedLangs = getSelectedLanguageCodes();
-    const langCodes = Array.isArray(selectedLangs) ? selectedLangs : [selectedLangs];
-    const worker = await Tesseract.createWorker(selectedLangs, 1, {
-        workerPath: chrome.runtime.getURL(CONSTANTS.workerPath),
-        corePath: chrome.runtime.getURL(CONSTANTS.corePath),
-        langPath: chrome.runtime.getURL(CONSTANTS.langPath),
+async function createWorker() {
+    const langCode = getLanguageCode();
+    console.log('Creating Tesseract worker for language:', langCode);
+    const worker = await Tesseract.createWorker([langCode], 1, {
+        workerPath: chrome.runtime.getURL('lib/worker.min.js'),
+        corePath: chrome.runtime.getURL('lib/tesseract-core-simd-lstm.wasm.js'),
+        langPath: chrome.runtime.getURL('languages/'),
         logger: (m) => {
             console.log(m);
         },
         errorHandler: (e) => {
             console.warn(e);
-            // You might want to add error handling here
         }
     });
 
-    await worker.loadLanguage(langCodes);
-    await worker.initialize(langCodes);
+    await worker.loadLanguage(langCode);
+    await worker.initialize(langCode);
 
     const params = {};
-    if (langCodes.some(lang => lang.endsWith('_vert'))) {
+    if (langCode.endsWith('_vert')) {
         params['tessedit_pageseg_mode'] = Tesseract.PSM.SINGLE_BLOCK_VERT_TEXT;
     }
-    if (langCodes.some(lang => ['chi_tra', 'chi_tra_vert', 'jpn', 'jpn_vert', 'kor', 'kor_vert'].includes(lang))) {
+    if (['chi_tra', 'chi_tra_vert', 'jpn', 'jpn_vert', 'kor', 'kor_vert'].includes(langCode)) {
         params['preserve_interword_spaces'] = '1';
     }
 
@@ -990,45 +1020,73 @@ async function initializeTesseract() {
     return worker;
 }
   
-  function getSelectedLanguageCodes() {
-    console.log(CONSTANTS.workerLanguage.join('+'));
-    return CONSTANTS.workerLanguage.join('+');
-  }
+function getLanguageCode() {
+    const languageCodes = {
+        'jap': isVertical ? 'jpn_vert' : 'jpn',
+        'chn': isVertical ? 'chi_tra_vert' : 'chi_tra',
+        'kor': isVertical ? 'kor_vert' : 'kor'
+    };
+    return languageCodes[currentLanguage];
+}
   
-  async function processImageWithTesseract(imageData, language) {
-    showLoadingIndicator('Processing image with Tesseract...');
+async function processImageWithTesseract(imageData) {
+    const langCode = getLanguageCode();
+    imageData = await invertImageColors(imageData);
+    console.log(langCode);
+    showLoadingIndicator(`Processing image with Tesseract (${langCode})...`);
     try {
-      await initializeTesseract();
-  
-      const { data } = await tesseractWorker.recognize(imageData);
-      
-      let text = data.text;
-      
-      // Post-processing for CJK and Thai languages
-      if (['chi_tra', 'chi_tra_vert', 'jpn', 'jpn_vert', 'kor', 'kor_vert'].includes(language.toLowerCase())){
-        if (text) {
-            console.log(2);
-            text = text.replace(/[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}0-9.,!?…]/gu, '');
+        await initializeTesseract();
+
+        const { data } = await tesseractWorker.recognize(imageData);
+        
+        let text = data.text;
+        
+        // Post-processing for CJK languages
+        if (['chi_tra', 'chi_tra_vert', 'jpn', 'jpn_vert', 'kor', 'kor_vert'].includes(langCode)){
+            if (text) {
+                text = text.replace(/[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}0-9.,!?…]/gu, '');
+            }
         }
-    }
-    
-      console.log('Tesseract OCR Result:', text);
-      
-      // Proceed with translation
-      sendMessage({ 
-        action: "translate", 
-        text: text, 
-        service: currentTranslationService,
-        language: language
-      });
+        
+        console.log('Tesseract OCR Result:', text);
+        
+        // Proceed with translation
+        sendMessage({ 
+            action: "translate", 
+            text: text, 
+            service: currentTranslationService,
+            language: currentLanguage
+        });
     } catch (error) {
-      console.error('Error processing image with Tesseract:', error);
-      displayErrorMessage("Error occurred while processing the image with Tesseract.");
+        console.error('Error processing image with Tesseract:', error);
+        displayErrorMessage("Error occurred while processing the image with Tesseract.");
     } finally {
-      hideLoadingIndicator();
+        hideLoadingIndicator();
     }
-  }
+}
   
+function invertImageColors(imageData) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = 255 - data[i];         // red
+                data[i + 1] = 255 - data[i + 1]; // green
+                data[i + 2] = 255 - data[i + 2]; // blue
+            }
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL());
+        };
+        img.src = imageData;
+    });
+}
 
 let scrollOffset = 0;
 let currentOverlay = null;
@@ -1110,10 +1168,11 @@ function adjustFontSize(textElement, container) {
     }
 }
 
-chrome.storage.sync.get(['extensionEnabled', 'currentTranslationService', 'currentLanguage', 'overlayEnabled'], (data) => {
+chrome.storage.sync.get(['extensionEnabled', 'currentTranslationService', 'currentLanguage', 'overlayEnabled', 'isVertical'], (data) => {
     isExtensionEnabled = data.extensionEnabled !== false;
     currentTranslationService = data.currentTranslationService || 'google';
     currentLanguage = data.currentLanguage || 'jap';
     isOverlayEnabled = data.overlayEnabled === true;
-    console.log('Overlay enabled:', isOverlayEnabled);
+    isVertical = data.isVertical || false;
+    console.log('Extension initialized with language:', currentLanguage, 'isVertical:', isVertical);
 });

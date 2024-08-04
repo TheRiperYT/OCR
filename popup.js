@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
         updateToggleLabel(overlayToggle, 'overlayStatus');
         updateToggleLabel(tesseractToggle, 'tesseractStatus');
         
-        setActiveLanguageButton(result.currentLanguage || 'JAP');
+        setActiveLanguageButton(result.currentLanguage || 'jap');
     });
 
     // Extension toggle
@@ -53,9 +53,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Language selection
-    japaneseBtn.addEventListener('click', () => setLanguage('JAP'));
-    chineseBtn.addEventListener('click', () => setLanguage('CHN'));
-    koreanBtn.addEventListener('click', () => setLanguage('KOR'));
+    japaneseBtn.addEventListener('click', () => setLanguage('jap'));
+    chineseBtn.addEventListener('click', () => setLanguage('chn'));
+    koreanBtn.addEventListener('click', () => setLanguage('kor'));
 
     function setLanguage(lang) {
         chrome.storage.sync.set({currentLanguage: lang}, function() {
@@ -67,9 +67,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function setActiveLanguageButton(lang) {
-        japaneseBtn.classList.toggle('active', lang === 'JAP');
-        chineseBtn.classList.toggle('active', lang === 'CHN');
-        koreanBtn.classList.toggle('active', lang === 'KOR');
+        japaneseBtn.classList.toggle('active', lang === 'jap');
+        chineseBtn.classList.toggle('active', lang === 'chn');
+        koreanBtn.classList.toggle('active', lang === 'kor');
     }
 
     function updateToggleLabel(toggle, labelId) {
