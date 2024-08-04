@@ -49,12 +49,33 @@ function cropImage(dataUrl, area, language, sendResponse) {
       console.log('Background: Image cropped to blob');
       const reader = new FileReader();
       reader.onloadend = function() {
-        console.log('Background: Image converted to base64, sending for OCR...');
+        console.log('Background: Image converted to base64');
         const base64data = reader.result;
-        const formattedBase64 = base64data.includes('data:image/png;base64,') 
-          ? base64data 
-          : `data:image/png;base64,${base64data.split(',')[1]}`;
-        performOCR(formattedBase64, language, sendResponse);
+        chrome.storage.sync.get('tesseractEnabled', function(result) {
+          if (result.tesseractEnabled) {
+            console.log('Background: Tesseract enabled, sending image to content script');
+            chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
+              if (tabs[0]) {
+                chrome.tabs.sendMessage(tabs[0].id, {
+                  action: "processImageWithTesseract",
+                  imageData: base64data,
+                  language: language
+                }, function(response) {
+                  if (chrome.runtime.lastError) {
+                    console.error('Error sending message:', chrome.runtime.lastError);
+                  } else {
+                    console.log('Message sent successfully');
+                  }
+                });
+              } else {
+                console.error('No active tab found');
+              }
+            });
+          } else {
+            console.log('Background: Tesseract disabled, performing OCR');
+            performOCR(base64data, language, sendResponse);
+          }
+        });
       }
       reader.readAsDataURL(blob);
     })

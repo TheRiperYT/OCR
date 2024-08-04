@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "エクスプロージョン: OCR and Translate",
+  "name": "エクスプロージョン",
   "version": "1.0",
   "description": "Perform OCR and translation on selected screen areas",
   "permissions": [
@@ -27,7 +27,8 @@
   ],
   "web_accessible_resources": [{
     "resources": [
-      "lib/*"
+      "lib/*",
+      "languages/*"
     ],
     "matches": ["<all_urls>"]
   }],

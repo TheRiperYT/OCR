@@ -921,8 +921,254 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
         } else if (lastOCRText) {
             displayResults(lastOCRText, document.getElementById('translated-text').textContent);
         }
+    } else if (request.action === "processImageWithTesseract") {
+        processImageWithTesseract(request.imageData, request.language);
     }
 });
+
+let tesseractWorker = null;
+
+const CONSTANTS = {
+    workerLanguage: ['jpn'],
+    progressBarId: "image-to-text-progress-bar",
+    loadingMessageId: "loadingMessage",
+    workerPath: "lib/worker.min.js",
+    corePath: "lib/tesseract-core-simd-lstm.wasm.js",
+    langPath: "languages/"
+  };
+
+async function initializeTesseract() {
+    if (tesseractWorker) return;
+  
+    // Inject Tesseract script
+    await injectScript(chrome.runtime.getURL('lib/tesseract.min.js'));
+  
+    console.log('Tesseract script injected');
+  
+    tesseractWorker = await createWorker();
+  
+    console.log('Tesseract worker initialized');
+  }
+  
+  function injectScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  
+  async function createWorker() {
+    const worker = await Tesseract.createWorker(getSelectedLanguageCodes(), 1, {
+      workerPath: chrome.runtime.getURL(CONSTANTS.workerPath),
+      corePath: chrome.runtime.getURL(CONSTANTS.corePath),
+      langPath: chrome.runtime.getURL(CONSTANTS.langPath),
+      logger: (m) => {
+        console.log(m);
+        if (m.status === "recognizing text") {
+          let progressBar = document.getElementById(CONSTANTS.progressBarId);
+          if (progressBar) {
+            progressBar.style.width = `${m.progress * 100}%`;
+            let percentage = Math.round(m.progress * 100);
+            progressBar.textContent = `${percentage}% - ${m.status}`;
+            let red = 255 - Math.round((255 * percentage) / 100);
+            let green = Math.round((255 * percentage) / 100);
+            progressBar.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
+            if (m.progress === 1) {
+              progressBar.textContent = "Finished";
+              setTimeout(() => progressBar.parentElement.remove(), 800);
+            }
+          }
+        } else {
+          let message = document.getElementById(CONSTANTS.loadingMessageId);
+          if (
+            !message &&
+            m.status == "loading tesseract core" &&
+            m.progress === 0
+          ) {
+            insertLoadingMessage("Initializing Image to Text Engine. Please wait...");
+          }
+          updateLoadingMessage(
+            m.status,
+            m.progress,
+            "Please wait... Grabbing language files... This could take a while."
+          );
+          if (m.status === "initializing api" && m.progress === 1) {
+            removeLoadingMessage();
+          }
+        }
+      },
+    });
+    await worker.setParameters({
+      preserve_interword_spaces: "1",
+    });
+    return worker;
+  }
+  
+  function getSelectedLanguageCodes() {
+    return CONSTANTS.workerLanguage.join('+');
+  }
+  
+  function updateLoadingMessage(status, progress, pretext) {
+    let preTextNode = document.getElementById("loadingMessagePreText");
+    let textNode = document.getElementById("loadingMessageText");
+    let progressNode = document.getElementById("loadingMessageProgress");
+  
+    if (preTextNode && textNode && progressNode) {
+      if (pretext) preTextNode.textContent = pretext;
+      textNode.textContent = status;
+      progressNode.textContent = `Progress: ${Math.round(progress * 100)}%`;
+    }
+  }
+  
+  // Helper functions that are referenced in the above functions
+  function insertLoadingMessage(text) {
+    // Create the message element
+    let message = document.createElement("div");
+    message.id = "loadingMessage";
+    message.style.position = "fixed";
+    message.style.top = "50%";
+    message.style.left = "50%";
+    message.style.transform = "translate(-50%, -50%)";
+    message.style.padding = "20px";
+    message.style.backgroundColor = "#f8f9fa";
+    message.style.color = "#212529";
+    message.style.borderRadius = "10px";
+    message.style.zIndex = "10000";
+    message.style.width = "300px";
+    message.style.textAlign = "center";
+    message.style.boxShadow = "0px 0px 10px rgba(0, 0, 0, 0.1)";
+    message.style.border = "1px solid #e3e6f0";
+  
+    // Create the header node
+    let headerNode = document.createElement("h2");
+    headerNode.id = "loadingMessageHeader";
+    headerNode.textContent = "Image to Text Extension";
+    headerNode.style.marginBottom = "10px";
+  
+    // Create the pretext node
+    let preTextNode = document.createElement("div");
+    preTextNode.id = "loadingMessagePreText";
+  
+    // Create the text node
+    let textNode = document.createElement("div");
+    textNode.id = "loadingMessageText";
+    textNode.textContent = text;
+    textNode.style.marginTop = "10px";
+  
+    // Create the progress element
+    let progress = document.createElement("div");
+    progress.id = "loadingMessageProgress";
+    progress.style.marginTop = "10px";
+    progress.style.fontWeight = "bold";
+  
+    // Append all elements to the message
+    message.appendChild(headerNode);
+    message.appendChild(preTextNode);
+    message.appendChild(textNode);
+    message.appendChild(progress);
+  
+    // Add the message to the body
+    document.body.appendChild(message);
+  }
+  
+  function removeLoadingMessage() {
+    let message = document.getElementById("loadingMessage");
+    if (message) {
+      message.parentNode.removeChild(message);
+    }
+  }
+  
+  function updateProgressBar(m) {
+    let progressBar = document.getElementById("tesseract-progress-bar");
+    if (!progressBar) {
+      progressBar = createProgressBar();
+    }
+    const percentage = Math.round(m.progress * 100);
+    progressBar.style.width = `${percentage}%`;
+    progressBar.textContent = `${percentage}% - ${m.status}`;
+    
+    // Change color based on progress
+    const red = 255 - Math.round((255 * percentage) / 100);
+    const green = Math.round((255 * percentage) / 100);
+    progressBar.style.backgroundColor = `rgb(${red}, ${green}, 0)`;
+    
+    if (m.progress === 1) {
+      progressBar.textContent = "Finished";
+      setTimeout(() => progressBar.remove(), 800);
+    }
+  }
+  
+  function createProgressBar() {
+    const progressBar = document.createElement('div');
+    progressBar.id = 'tesseract-progress-bar';
+    progressBar.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      width: 0%;
+      height: 20px;
+      background-color: #4CAF50;
+      text-align: center;
+      line-height: 20px;
+      color: white;
+      transition: width 0.3s ease;
+    `;
+    document.body.appendChild(progressBar);
+    return progressBar;
+  }
+  
+  function createLoadingMessage(text) {
+    const message = document.createElement('div');
+    message.id = 'tesseract-loading-message';
+    message.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 20px;
+      border-radius: 10px;
+      z-index: 10000;
+    `;
+    message.textContent = text;
+    document.body.appendChild(message);
+    return message;
+  }
+  
+  async function processImageWithTesseract(imageData, language) {
+    showLoadingIndicator('Processing image with Tesseract...');
+    try {
+      await initializeTesseract();
+  
+      const { data: { text } } = await tesseractWorker.recognize(imageData);
+      
+      console.log('Tesseract OCR Result:', text);
+      
+    //   // Clean the OCR text based on the language
+    //   const cleanedText = cleanOCRText(text, language);
+      
+    //   // Update lastOCRText with the cleaned text
+    //   lastOCRText = cleanedText;
+      
+      // Proceed with translation
+      sendMessage({ 
+        action: "translate", 
+        text: text, 
+        service: currentTranslationService,
+        language: language
+      });
+    } catch (error) {
+      console.error('Error processing image with Tesseract:', error);
+      displayErrorMessage("Error occurred while processing the image with Tesseract.");
+    } finally {
+      hideLoadingIndicator();
+    }
+  }
+  
 
 let scrollOffset = 0;
 let currentOverlay = null;
