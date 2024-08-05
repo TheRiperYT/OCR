@@ -23,7 +23,8 @@
 - [x] Add support for more languages (Korean)
 - [x] Make translation overlay remain on the selected text
 - [x] Better Popup UI
-- [ ] Add Tessaract support for when API limits are reached
+- [x] Add Tessaract support for when API limits are reached
+- [ ] Improve Tesseract recognition and overall use flow
 
 ## 📚 Tutorial: Setting Up API Keys
 
@@ -74,7 +75,7 @@ export const API_KEYS = {
 3. **OCR and Translation**: エクスプロージョン will automatically perform OCR and translate the text.
 4. **View Results**: The original text and translation will appear in a popup window.
 5. **Switch Translation Service**: Toggle between Google Translate and DeepL using the buttons in the result window.
-6. **Language Toggle**: Switch between Japanese and Chinese modes using the language toggle button.
+6. **Language Toggle**: Switch between Japanese, Chinese and Korean modes using the language toggle button.
 7. **Kanji/Hanzi Information**: 
    - Hover over individual kanji/hanzi characters to see detailed information.
    - Select multiple characters to get compound word meanings.
