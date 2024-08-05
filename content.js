@@ -1005,8 +1005,9 @@ async function createWorker() {
         }
     });
 
-    await worker.loadLanguage(langCode);
-    await worker.initialize(langCode);
+    //Apparently not needed but i'm not sure
+    // await worker.loadLanguage(langCode);
+    // await worker.initialize(langCode);
 
     const params = {};
     if (langCode.endsWith('_vert')) {
@@ -1029,12 +1030,165 @@ function getLanguageCode() {
     return languageCodes[currentLanguage];
 }
   
+function logImage(imageData, label) {
+    console.log(`${label}:`, imageData);
+    // You might want to display this image in the UI for debugging
+    // For example:
+    // document.body.innerHTML += `<img src="${imageData}" alt="${label}" style="max-width: 300px; margin: 10px;">`;
+}
+
+function invertImageColors(imageData) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = 255 - data[i];         // red
+                data[i + 1] = 255 - data[i + 1]; // green
+                data[i + 2] = 255 - data[i + 2]; // blue
+            }
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL());
+        };
+        img.src = imageData;
+    });
+}
+
+function reduceNoise(imageData) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            // Simple noise reduction using a 3x3 median filter
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            tempCtx.putImageData(imageData, 0, 0);
+
+            for (let y = 1; y < canvas.height - 1; y++) {
+                for (let x = 1; x < canvas.width - 1; x++) {
+                    let r = [], g = [], b = [];
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            let pixel = tempCtx.getImageData(x + dx, y + dy, 1, 1).data;
+                            r.push(pixel[0]);
+                            g.push(pixel[1]);
+                            b.push(pixel[2]);
+                        }
+                    }
+                    r.sort((a, b) => a - b);
+                    g.sort((a, b) => a - b);
+                    b.sort((a, b) => a - b);
+                    let idx = (y * canvas.width + x) * 4;
+                    data[idx] = r[4];     // median of red
+                    data[idx + 1] = g[4]; // median of green
+                    data[idx + 2] = b[4]; // median of blue
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL());
+        };
+        img.src = imageData;
+    });
+}
+
+function binarize(imageData, threshold = 128) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = () => {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const val = avg > threshold ? 255 : 0;
+                data[i] = val;     // red
+                data[i + 1] = val; // green
+                data[i + 2] = val; // blue
+            }
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL());
+        };
+        img.src = imageData;
+    });
+}
+
+function rescaleImage(imageData, scaleFactor =2, targetDPI) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        img.onload = () => {
+            // Calculate new dimensions
+            const newWidth = img.width * scaleFactor;
+            const newHeight = img.height * scaleFactor;
+
+            // Set canvas size to new dimensions
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+
+            // Use better quality scaling algorithm
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            // Draw the image at the new size
+            ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+            // Set DPI metadata
+            const dpi = targetDPI;
+            const dpiString = `${dpi} ${dpi}`;
+            canvas.setAttribute('data-dpi', dpiString);
+
+            // Get the rescaled image data
+            const rescaledImageData = canvas.toDataURL('image/png');
+
+            resolve(rescaledImageData);
+        };
+        img.src = imageData;
+    });
+}
+
 async function processImageWithTesseract(imageData) {
     const langCode = getLanguageCode();
-    imageData = await invertImageColors(imageData);
     console.log(langCode);
     showLoadingIndicator(`Processing image with Tesseract (${langCode})...`);
+    
     try {
+        logImage(imageData, "Original Image");
+        
+        // Apply image processing steps
+
+        // imageData = await rescaleImage(imageData, 2, 300);
+        //  logImage(imageData, "After Rescaling");
+        
+        // imageData = await binarize(imageData);
+        // logImage(imageData, "After Binarization");
+
+        //  imageData = await reduceNoise(imageData);
+        //  logImage(imageData, "After Noise Reduction");
+
+        // imageData = await invertImageColors(imageData);
+        // logImage(imageData, "After Color Inversion");
+
         await initializeTesseract();
 
         const { data } = await tesseractWorker.recognize(imageData);
@@ -1063,29 +1217,6 @@ async function processImageWithTesseract(imageData) {
     } finally {
         hideLoadingIndicator();
     }
-}
-  
-function invertImageColors(imageData) {
-    return new Promise((resolve) => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-        img.onload = () => {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = 255 - data[i];         // red
-                data[i + 1] = 255 - data[i + 1]; // green
-                data[i + 2] = 255 - data[i + 2]; // blue
-            }
-            ctx.putImageData(imageData, 0, 0);
-            resolve(canvas.toDataURL());
-        };
-        img.src = imageData;
-    });
 }
 
 let scrollOffset = 0;
