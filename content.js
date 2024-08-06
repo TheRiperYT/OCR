@@ -1060,78 +1060,6 @@ function invertImageColors(imageData) {
     });
 }
 
-function reduceNoise(imageData) {
-    return new Promise((resolve) => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-        img.onload = () => {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            
-            // Simple noise reduction using a 3x3 median filter
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = canvas.width;
-            tempCanvas.height = canvas.height;
-            tempCtx.putImageData(imageData, 0, 0);
-
-            for (let y = 1; y < canvas.height - 1; y++) {
-                for (let x = 1; x < canvas.width - 1; x++) {
-                    let r = [], g = [], b = [];
-                    for (let dy = -1; dy <= 1; dy++) {
-                        for (let dx = -1; dx <= 1; dx++) {
-                            let pixel = tempCtx.getImageData(x + dx, y + dy, 1, 1).data;
-                            r.push(pixel[0]);
-                            g.push(pixel[1]);
-                            b.push(pixel[2]);
-                        }
-                    }
-                    r.sort((a, b) => a - b);
-                    g.sort((a, b) => a - b);
-                    b.sort((a, b) => a - b);
-                    let idx = (y * canvas.width + x) * 4;
-                    data[idx] = r[4];     // median of red
-                    data[idx + 1] = g[4]; // median of green
-                    data[idx + 2] = b[4]; // median of blue
-                }
-            }
-            
-            ctx.putImageData(imageData, 0, 0);
-            resolve(canvas.toDataURL());
-        };
-        img.src = imageData;
-    });
-}
-
-function binarize(imageData, threshold = 128) {
-    return new Promise((resolve) => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-        img.onload = () => {
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = imageData.data;
-            for (let i = 0; i < data.length; i += 4) {
-                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                const val = avg > threshold ? 255 : 0;
-                data[i] = val;     // red
-                data[i + 1] = val; // green
-                data[i + 2] = val; // blue
-            }
-            ctx.putImageData(imageData, 0, 0);
-            resolve(canvas.toDataURL());
-        };
-        img.src = imageData;
-    });
-}
-
 function rescaleImage(imageData, scaleFactor =2, targetDPI) {
     return new Promise((resolve) => {
         const canvas = document.createElement('canvas');
@@ -1167,6 +1095,98 @@ function rescaleImage(imageData, scaleFactor =2, targetDPI) {
     });
 }
 
+  function sharpenImage(imageData, amount = 50) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+  
+        // Draw the original image onto the canvas
+        ctx.drawImage(img, 0, 0);
+  
+        // Get the image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        const width = imageData.width;
+        const height = imageData.height;
+  
+        // Create a copy of the original image data
+        const original = new Uint8ClampedArray(data);
+  
+        // Apply sharpening
+        for (let y = 1; y < height - 1; y++) {
+          for (let x = 1; x < width - 1; x++) {
+            for (let c = 0; c < 3; c++) {
+              const i = (y * width + x) * 4 + c;
+              
+              // Apply convolution
+              const sum = 
+                5 * original[i] -
+                original[i - 4] -
+                original[i + 4] -
+                original[i - width * 4] -
+                original[i + width * 4];
+  
+              // Normalize and apply sharpening
+              data[i] = Math.min(255, Math.max(0, original[i] + (amount / 100) * (sum - original[i])));
+            }
+          }
+        }
+  
+        // Put the modified image data back on the canvas
+        ctx.putImageData(imageData, 0, 0);
+  
+        // Convert the canvas to a data URL
+        const sharpenedImageData = canvas.toDataURL('image/png');
+  
+        resolve(sharpenedImageData);
+      };
+      img.src = imageData;
+    });
+  }
+
+  function enhanceBrightness(imageData, brightnessLevel = 50) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+  
+        // Draw the original image onto the canvas
+        ctx.drawImage(img, 0, 0);
+  
+        // Get the image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+  
+        // Convert brightnessLevel to a multiplier
+        const brightnessFactor = 1 + (brightnessLevel / 100);
+  
+        // Enhance brightness
+        for (let i = 0; i < data.length; i += 4) {
+          data[i] = Math.min(255, data[i] * brightnessFactor);     // Red
+          data[i + 1] = Math.min(255, data[i + 1] * brightnessFactor); // Green
+          data[i + 2] = Math.min(255, data[i + 2] * brightnessFactor); // Blue
+          // data[i + 3] is the alpha channel, we don't modify it
+        }
+  
+        // Put the modified image data back on the canvas
+        ctx.putImageData(imageData, 0, 0);
+  
+        // Convert the canvas to a data URL
+        const enhancedImageData = canvas.toDataURL('image/png');
+  
+        resolve(enhancedImageData);
+      };
+      img.src = imageData;
+    });
+  }
+
 async function processImageWithTesseract(imageData) {
     const langCode = getLanguageCode();
     console.log(langCode);
@@ -1177,17 +1197,17 @@ async function processImageWithTesseract(imageData) {
         
         // Apply image processing steps
 
-        // imageData = await rescaleImage(imageData, 2, 300);
-        //  logImage(imageData, "After Rescaling");
-        
-        // imageData = await binarize(imageData);
-        // logImage(imageData, "After Binarization");
-
-        //  imageData = await reduceNoise(imageData);
-        //  logImage(imageData, "After Noise Reduction");
+        imageData = await rescaleImage(imageData, 3);
+        logImage(imageData, "After Rescaling");
 
         // imageData = await invertImageColors(imageData);
-        // logImage(imageData, "After Color Inversion");
+        // logImage(imageData, "After Inverting");
+
+        imageData = await enhanceBrightness(imageData, 50);
+        logImage(imageData, "After Brightness enhancement");
+
+        imageData = await sharpenImage(imageData, 75);
+        logImage(imageData, "After Sharpening");
 
         await initializeTesseract();
 
