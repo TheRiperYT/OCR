@@ -5,7 +5,7 @@ chrome.runtime.onInstalled.addListener(() => {
 
 import { API_KEYS } from './config.js';
 const OCR_API_KEY = API_KEYS.OCR_SPACE;
-const deepL_API_KEY = API_KEYS.DEEPL
+const deepL_API_KEY = API_KEYS.DEEPL;
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('Background: Received message:', request);
@@ -19,9 +19,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === "translate") {
     console.log('Background: Translating text');
     translateText(request.text, request.service, request.language, sendResponse);
-  } else if (request.action === "fetchKanjiInfo") {
-    console.log('Background: Fetching kanji info');
-    fetchKanjiInfo(request.kanji, sendResponse);
+  } else if (request.action === "fetchCJKInfo") {
+    console.log('Background: Fetching CJK info');
+    fetchCJKInfo(request.character, request.language, sendResponse);
   } else if (request.action === "fetchMultiKanjiInfo") {
     console.log('Background: Fetching multi-kanji info');
     fetchMultiKanjiInfo(request.kanji, sendResponse);
@@ -62,7 +62,7 @@ function cropImage(dataUrl, area, language, sendResponse) {
                   language: language
                 }, function(response) {
                   if (chrome.runtime.lastError) {
-                    console.error('Error sending message:', chrome.runtime.lastError);
+                    console.log('Error sending message:', chrome.runtime.lastError);
                   } else {
                     console.log('Message sent successfully');
                   }
@@ -92,7 +92,7 @@ function cropImage(dataUrl, area, language, sendResponse) {
 function performOCR(image, language, sendResponse) {
   console.log(`Background: Starting OCR process for ${language}...`);
   const apiKey = OCR_API_KEY;
-  const languageCode = language === 'chn' ? 'cht' : (language === 'kor' ? 'kor' : 'jpn');  // 'chs' - Simplified Chinese, 'cht' - Traditional Chinese, 'jpn' for Japanese, 'kor' for Korean
+  const languageCode = language === 'chn' ? 'cht' : (language === 'kor' ? 'kor' : 'jpn');
   
   fetch('https://api.ocr.space/parse/image', {
     method: 'POST',
@@ -123,7 +123,7 @@ function performOCR(image, language, sendResponse) {
     }
   })
   .catch(error => {
-    //console.error('Background: OCR Error:', error);
+    console.error('Background: OCR Error:', error);
     sendResponse({
       action: "ocrError",
       error: error.toString(),
@@ -132,7 +132,7 @@ function performOCR(image, language, sendResponse) {
   });
 }
 
-function reorderText(text){
+function reorderText(text) {
   let phrases = text.split(' ');
   phrases.reverse();
   text = phrases.join('');
@@ -149,6 +149,9 @@ function cleanOCRText(text, language) {
     text = text.replace(/ロ/g, '口');
   } else if (language === 'chn') {
     text = text.replace(/[^\u4e00-\u9fff\u3400-\u4dbf\s]/g, '');
+    text = text.replace(/\s+/g, ' ').trim();
+  } else if (language === 'kor') {
+    text = text.replace(/[^\u3131-\u3163\uac00-\ud7a3\s]/g, '');
     text = text.replace(/\s+/g, ' ').trim();
   }
   return text;
@@ -239,42 +242,34 @@ function translateWithDeepL(text, sourceLanguage, sendResponse) {
   });
 }
 
-function fetchKanjiInfo(kanji, sendResponse) {
-  const url = `https://jisho.org/search/${encodeURIComponent(kanji)}`;
-  
+function fetchCJKInfo(character, language, sendResponse) {
+  let url;
+  if (language === 'jap') {
+    url = `https://jisho.org/search/${encodeURIComponent(character)}`;
+  } else if (language === 'chn') {
+    url = `https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${encodeURIComponent(character)}`;
+  } else if (language === 'kor') {
+    url = `https://en.dict.naver.com/#/search?query=${encodeURIComponent(character)}`;
+  }
+
   fetch(url)
     .then(response => response.text())
     .then(html => {
-      const readingMatch = html.match(/class="furigana">\s*<span class="kanji-\d-up kanji">([^<]+)/);
-      const reading = readingMatch ? readingMatch[1].trim() : 'Not found';
-
-      const meaningsMatch = html.match(/<div class="meanings english sense">([\s\S]*?)<\/div>/);
-      const meanings = meaningsMatch ? meaningsMatch[1].trim() : 'Not found';
-
-      const kunMatch = html.match(/<div class="kun readings">([\s\S]*?)<\/div>/);
-      const kunReadings = kunMatch 
-        ? kunMatch[1].replace(/<[^>]+>/g, '').replace(/Kun:/i, '').trim() 
-        : 'Not found';
-
-      const onMatch = html.match(/<div class="on readings">([\s\S]*?)<\/div>/);
-      const onReadings = onMatch 
-        ? onMatch[1].replace(/<[^>]+>/g, '').replace(/On:/i, '').trim() 
-        : 'Not found';
-
-      console.log('Extracted info:', { reading, meanings, kunReadings, onReadings });
-
+      let info = {};
+      if (language === 'jap') {
+        info = extractJapaneseInfo(html, character);
+      } else if (language === 'chn') {
+        info = extractChineseInfo(html, character);
+      } else if (language === 'kor') {
+        info = extractKoreanInfo(html, character);
+      }
       sendResponse({
-        action: "kanjiInfo",
-        kanji: kanji,
-        reading: reading,
-        meanings: meanings,
-        kunReadings: kunReadings,
-        onReadings: onReadings,
-        url: url
+        action: "cjkInfo",
+        ...info
       });
     })
     .catch(error => {
-      console.error('Background: Error fetching kanji info:', error);
+      console.error(`Background: Error fetching ${language} info:`, error);
       sendResponse({
         action: "error",
         error: error.toString()
@@ -282,32 +277,83 @@ function fetchKanjiInfo(kanji, sendResponse) {
     });
 }
 
-function extractKanjiReadings(html) {
-  console.log('Extracting kanji readings from HTML...');
+function extractJapaneseInfo(html, character) {
+  const readingMatch = html.match(/class="furigana">\s*<span class="kanji-\d-up kanji">([^<]+)/);
+  const reading = readingMatch ? readingMatch[1].trim() : 'Not found';
+
+  const meaningsMatch = html.match(/<div class="meanings english sense">([\s\S]*?)<\/div>/);
+  const meanings = meaningsMatch ? meaningsMatch[1].trim() : 'Not found';
+
+  const kunMatch = html.match(/<div class="kun readings">([\s\S]*?)<\/div>/);
+  const kunReadings = kunMatch 
+    ? kunMatch[1].replace(/<[^>]+>/g, '').replace(/Kun:/i, '').trim() 
+    : 'Not found';
+
+  const onMatch = html.match(/<div class="on readings">([\s\S]*?)<\/div>/);
+  const onReadings = onMatch 
+    ? onMatch[1].replace(/<[^>]+>/g, '').replace(/On:/i, '').trim() 
+    : 'Not found';
+
+  return { character, reading, meanings, kunReadings, onReadings };
+}
+
+function extractChineseInfo(html, character) {
+  const resultMatch = html.match(/<tr class="row">[\s\S]*?<\/tr>/);
+  if (!resultMatch) {
+    return { character, pronunciation: 'Not found', meaning: 'Not found' };
+  }
+
+  const rowHtml = resultMatch[0];
   
-  const furiganaPattern = /<span class="furigana"[^>]*>([\s\S]*?)<\/div>/i;
-  const furiganaMatch = html.match(furiganaPattern);
+  const pinyinMatch = rowHtml.match(/<div class="pinyin"[^>]*>[\s\S]*?<span class="mpt\d+">([^<]+)<\/span>/);
+  const pinyin = pinyinMatch ? pinyinMatch[1].trim() : 'Not found';
   
-  if (!furiganaMatch) {
-    console.log('No furigana span found in the HTML');
-    return 'Not found';
+  const detailsMatch = rowHtml.match(/<td class="details">([\s\S]*?)<\/td>/);
+  let meanings = 'Not found';
+  if (detailsMatch) {
+    const defsMatch = detailsMatch[1].match(/<div class="defs">([\s\S]*?)<\/div>/);
+    if (defsMatch) {
+      meanings = defsMatch[1].split(';')
+        .map(meaning => meaning.trim())
+        .filter(meaning => meaning.length > 0)
+        .map((meaning, index) => `${index + 1}. ${character} - ${meaning}`)
+        .join('\n');
+    }
   }
   
-  console.log('Found furigana content. Full content:');
-  console.log(furiganaMatch[1]);
+  return { character, pronunciation: pinyin, meaning: meanings };
+}
+
+function extractKoreanInfo(html, character) {
+  const similarWordsTableMatch = html.match(/<table class="similar-words">([\s\S]*?)<\/table>/);
   
-  const hiraganaPattern = /[\u3040-\u309F]/g;
-  const hiraganaMatches = furiganaMatch[1].match(hiraganaPattern);
-  
-  if (!hiraganaMatches) {
-    console.log('No hiragana characters found within furigana content');
-    return 'Not found';
+  if (!similarWordsTableMatch) {
+    return { character, pronunciation: 'Not found', meaning: 'Not found' };
   }
+
+  const tableHtml = similarWordsTableMatch[1];
+  const rows = tableHtml.match(/<tr>([\s\S]*?)<\/tr>/g);
   
-  const reading = hiraganaMatches.join('');
-  console.log('Extracted reading:', reading);
+  let meaningsWithKorean = [];
   
-  return reading;
+  if (rows) {
+    rows.forEach(row => {
+      const cells = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g);
+      if (cells && cells.length >= 3) {
+        let koreanSymbol = cells[1].replace(/<[^>]+>/g, '').trim();
+        let meaning = cells[2].replace(/<[^>]+>/g, '').trim();
+        if (meaning && !meaningsWithKorean.some(item => item.meaning === meaning)) {
+          meaningsWithKorean.push({ korean: koreanSymbol, meaning: meaning });
+        }
+      }
+    });
+  }
+
+  let formattedMeanings = meaningsWithKorean.map((item, index) => 
+    `${index + 1}. ${item.korean} - ${item.meaning}`
+  ).join('\n');
+
+  return { character, pronunciation: 'N/A', meaning: formattedMeanings || 'Not found' };
 }
 
 function fetchMultiKanjiInfo(kanji, sendResponse) {
@@ -346,4 +392,32 @@ function fetchMultiKanjiInfo(kanji, sendResponse) {
         error: error.toString()
       });
     });
+}
+
+function extractKanjiReadings(html) {
+  console.log('Extracting kanji readings from HTML...');
+  
+  const furiganaPattern = /<span class="furigana"[^>]*>([\s\S]*?)<\/div>/i;
+  const furiganaMatch = html.match(furiganaPattern);
+  
+  if (!furiganaMatch) {
+    console.log('No furigana span found in the HTML');
+    return 'Not found';
+  }
+  
+  console.log('Found furigana content. Full content:');
+  console.log(furiganaMatch[1]);
+  
+  const hiraganaPattern = /[\u3040-\u309F]/g;
+  const hiraganaMatches = furiganaMatch[1].match(hiraganaPattern);
+  
+  if (!hiraganaMatches) {
+    console.log('No hiragana characters found within furigana content');
+    return 'Not found';
+  }
+  
+  const reading = hiraganaMatches.join('');
+  console.log('Extracted reading:', reading);
+  
+  return reading;
 }

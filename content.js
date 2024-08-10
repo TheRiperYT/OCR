@@ -10,6 +10,7 @@ let isExtensionEnabled = true;
 let lastOverlayData = null;
 let tesseractWorker = null;
 let isVertical = false;
+let isFirstProcessing = true;
 
 const styles = `
     #ocr-overlay {
@@ -93,7 +94,8 @@ const styles = `
         background-color: #808080;
         color: #D3D3D3;
     }
-     #kanji-info {
+
+    #kanji-info {
         position: fixed;
         top: 50%;
         left: 50%;
@@ -108,7 +110,9 @@ const styles = `
         display: none;
         max-width: 80%;
         min-width: 200px;
-        white-space: nowrap;
+        white-space: normal; /* Changed from nowrap to allow wrapping */
+        max-height: 80vh; /* Limit height to 80% of viewport height */
+        overflow-y: auto; /* Add vertical scrollbar when needed */
     }
 
     #kanji-info h4 {
@@ -119,6 +123,35 @@ const styles = `
 
     #kanji-info p {
         margin: 5px 0;
+    }
+
+    #kanji-info .meanings-list {
+        list-style-type: none;
+        padding-left: 0;
+        margin-top: 5px;
+    }
+
+    #kanji-info .meanings-list li {
+        margin-bottom: 5px;
+        display: flex;
+        align-items: flex-start;
+    }
+
+    #kanji-info .number {
+        min-width: 30px;
+        margin-right: 5px;
+        flex-shrink: 0;
+    }
+
+    #kanji-info .korean {
+        min-width: 70px;
+        margin-right: 10px;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+
+    #kanji-info .meaning {
+        flex: 1;
     }
 
     #original-text {
@@ -214,6 +247,19 @@ const styles = `
         cursor: pointer;
         font-size: 14px;
     }
+
+    .toggle-button {
+        padding: 5px 10px;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-left: 10px;
+        height: 30px;
+        min-width: 80px;
+    }
 `;
 
 const styleSheet = document.createElement("style");
@@ -282,6 +328,7 @@ document.addEventListener('mouseup', endSelection);
 
 function startSelection(e) {
     isSelecting = true;
+    isFirstProcessing = true;
     startX = e.clientX;
     startY = e.clientY;
     clearSelection();
@@ -371,7 +418,7 @@ document.addEventListener('keydown', function(e) {
 function sendMessage(message) {
     chrome.runtime.sendMessage(message, function(response) {
         if (chrome.runtime.lastError) {
-            console.error('Error sending message:', chrome.runtime.lastError);
+            console.log('Error sending message:', chrome.runtime.lastError.message);
             return;
         }
         handleResponse(response);
@@ -404,20 +451,22 @@ function handleResponse(response) {
         console.log('Content script: Translation result received:', response.translatedText);
         hideLoadingIndicator();
         displayResults(response.originalText, response.translatedText);
-        const languageToggle = document.getElementById('language-toggle');
-        //languageToggle.classList.toggle('active', currentLanguage === 'chn');
     } else if (response.action === "translationError") {
         console.error('Content script: Translation Error:', response.error);
         hideLoadingIndicator();
         displayErrorMessage(`An error occurred during translation: ${response.error}. Please try again.`);
-    } else if (response.action === "kanjiInfo") {
-        console.log('Content script: Kanji info received:', response);
+    } else if (response.action === "cjkInfo") {
+        console.log('Content script: CJK info received:', response);
         hideLoadingIndicator();
-        showKanjiInfo(response);
+        showCJKInfo(response);
     } else if (response.action === "multiKanjiInfo") {
         console.log('Content script: Multi-kanji info received:', response);
         hideLoadingIndicator();
         showMultiKanjiInfo(response);
+    } else if (response.action === "error") {
+        console.error('Content script: Error:', response.error);
+        hideLoadingIndicator();
+        displayErrorMessage(`An error occurred: ${response.error}. Please try again.`);
     }
 }
 
@@ -470,7 +519,7 @@ function captureSelection() {
             language: currentLanguage
         });
         overlay.style.display = 'none';
-        showLoadingIndicator('Capturing selection...');
+        //showLoadingIndicator('Capturing selection...');
     } catch (error) {
         console.error('Content script: Error sending message:', error);
         alert('An error occurred. Please refresh the page and try again.');
@@ -564,9 +613,15 @@ function updateVerticalToggle() {
     const verticalToggle = document.getElementById('vertical-toggle');
     if (verticalToggle) {
         verticalToggle.textContent = isVertical ? 'Vertical' : 'Horizontal';
-        verticalToggle.style.backgroundColor = isVertical ? '#9C27B0' : '#2196F3';
-        verticalToggle.style.color = 'white';
-        verticalToggle.style.transition = 'background-color 0.3s ease';
+        verticalToggle.className = 'toggle-button';
+        if (isVertical) {
+            verticalToggle.style.backgroundColor = '#9C27B0';
+            verticalToggle.style.color = 'white';
+        } else {
+            verticalToggle.style.backgroundColor = 'white';
+            verticalToggle.style.color = 'black';
+            verticalToggle.style.border = '1px solid #2196F3';
+        }
     }
 }
 
@@ -601,143 +656,24 @@ function updateLanguageSettings() {
 
 function setupCharacterHover() {
     const originalText = document.getElementById('original-text');
-    switch(currentLanguage) {
-        case 'jap':
-            wrapKanjiCharacters(originalText);
-            break;
-        case 'chn':
-            wrapChineseCharacters(originalText);
-            break;
-        case 'kor':
-            wrapKoreanCharacters(originalText);
-            break;
-    }
+    wrapCJKCharacters(originalText);
 }
 
-function wrapKoreanCharacters(element) {
-    element.innerHTML = element.textContent.replace(/([가-힣])/g, '<span class="korean-char">$1</span>');
+function wrapCJKCharacters(element) {
+    element.innerHTML = element.textContent.replace(
+        /([\u4e00-\u9fff\u3400-\u4dbf\u3131-\u3163\uac00-\ud7a3])/g,
+        '<span class="cjk-char">$1</span>'
+    );
     
-    const koreanChars = element.querySelectorAll('.korean-char');
-    koreanChars.forEach(char => {
-      char.addEventListener('mouseenter', handleKoreanHover);
-      char.addEventListener('mouseleave', handleKoreanHoverOut);
-      char.addEventListener('click', handleKoreanClick);
-    });
-  }
-  
-  // Add handler functions for Korean characters
-  function handleKoreanHover(event) {
-    if (currentHoveredElement !== event.target) {
-      if (currentHoveredElement) {
-        currentHoveredElement.classList.remove('hovered');
-      }
-      currentHoveredElement = event.target;
-      currentHoveredElement.classList.add('hovered');
-      
-      const character = event.target.textContent;
-      isHovering = true;
-      showLoadingIndicator(`Fetching info for ${character}...`);
-      sendMessage({ action: "fetchKoreanInfo", character: character });
-    }
-    
-    const charRect = event.target.getBoundingClientRect();
-    kanjiInfoBox.style.top = `${charRect.bottom + 5}px`;
-    kanjiInfoBox.style.left = `${charRect.left}px`;
-    kanjiInfoBox.style.transform = 'none';
-  }
-  
-  function handleKoreanHoverOut(event) {
-    isHovering = false;
-    if (currentHoveredElement) {
-      currentHoveredElement.classList.remove('hovered');
-    }
-    currentHoveredElement = null;
-    setTimeout(() => {
-      if (!isHovering) {
-        kanjiInfoBox.style.display = 'none';
-      }
-    }, 100);
-  }
-  
-  function handleKoreanClick(event) {
-    const character = event.target.textContent;
-    window.open(`https://krdict.korean.go.kr/eng/dicSearch/search?nation=eng&nationCode=6&ParaWordNo=&mainSearchWord=${encodeURIComponent(character)}`, '_blank');
-  }
-  
-  // Add a function to show Korean character info
-  function showKoreanInfo(info) {
-    if (!isHovering) {
-      return;
-    }
-    kanjiInfoBox.innerHTML = `
-      <h4>${info.character}</h4>
-      <p><strong>Meaning:</strong> ${info.meaning}</p>
-      <p><strong>Pronunciation:</strong> ${info.pronunciation}</p>
-    `;
-    kanjiInfoBox.style.display = 'block';
-  }
-
-function wrapKanjiCharacters(element) {
-    element.innerHTML = element.textContent.replace(/([\u4e00-\u9faf])/g, '<span class="kanji-char">$1</span>');
-    
-    const kanjiChars = element.querySelectorAll('.kanji-char');
-    kanjiChars.forEach(char => {
-        char.addEventListener('mouseenter', handleKanjiHover);
-        char.addEventListener('mouseleave', handleKanjiHoverOut);
-        char.addEventListener('click', handleKanjiClick);
+    const cjkChars = element.querySelectorAll('.cjk-char');
+    cjkChars.forEach(char => {
+        char.addEventListener('mouseenter', handleCJKHover);
+        char.addEventListener('mouseleave', handleCJKHoverOut);
+        char.addEventListener('click', handleCJKClick);
     });
 }
 
-function wrapChineseCharacters(element) {
-    element.innerHTML = element.textContent.replace(/([\u4e00-\u9fff\u3400-\u4dbf])/g, '<span class="chinese-char">$1</span>');
-    
-    const chineseChars = element.querySelectorAll('.chinese-char');
-    chineseChars.forEach(char => {
-        char.addEventListener('mouseenter', handleChineseHover);
-        char.addEventListener('mouseleave', handleChineseHoverOut);
-        char.addEventListener('click', handleChineseClick);
-    });
-}
-
-function handleKanjiHover(event) {
-    if (currentHoveredElement !== event.target) {
-        if (currentHoveredElement) {
-            currentHoveredElement.classList.remove('hovered');
-        }
-        currentHoveredElement = event.target;
-        currentHoveredElement.classList.add('hovered');
-        
-        const kanji = event.target.textContent;
-        isHovering = true;
-        showLoadingIndicator(`Fetching info for ${kanji}...`);
-        sendMessage({ action: "fetchKanjiInfo", kanji: kanji });
-    }
-    
-    const charRect = event.target.getBoundingClientRect();
-    kanjiInfoBox.style.top = `${charRect.bottom + 5}px`;
-    kanjiInfoBox.style.left = `${charRect.left}px`;
-    kanjiInfoBox.style.transform = 'none';
-}
-
-function handleKanjiHoverOut(event) {
-    isHovering = false;
-    if (currentHoveredElement) {
-        currentHoveredElement.classList.remove('hovered');
-    }
-    currentHoveredElement = null;
-    setTimeout(() => {
-        if (!isHovering) {
-            kanjiInfoBox.style.display = 'none';
-        }
-    }, 100);
-}
-
-function handleKanjiClick(event) {
-    const kanji = event.target.textContent;
-    window.open(`https://jisho.org/search/${encodeURIComponent(kanji)}`, '_blank');
-}
-
-function handleChineseHover(event) {
+function handleCJKHover(event) {
     if (currentHoveredElement !== event.target) {
         if (currentHoveredElement) {
             currentHoveredElement.classList.remove('hovered');
@@ -748,7 +684,11 @@ function handleChineseHover(event) {
         const character = event.target.textContent;
         isHovering = true;
         showLoadingIndicator(`Fetching info for ${character}...`);
-        sendMessage({ action: "fetchMultiKanjiInfo", kanji: character });
+        sendMessage({ 
+            action: "fetchCJKInfo", 
+            character: character,
+            language: currentLanguage
+        });
     }
     
     const charRect = event.target.getBoundingClientRect();
@@ -757,7 +697,7 @@ function handleChineseHover(event) {
     kanjiInfoBox.style.transform = 'none';
 }
 
-function handleChineseHoverOut(event) {
+function handleCJKHoverOut(event) {
     isHovering = false;
     if (currentHoveredElement) {
         currentHoveredElement.classList.remove('hovered');
@@ -770,22 +710,68 @@ function handleChineseHoverOut(event) {
     }, 100);
 }
 
-function handleChineseClick(event) {
+function handleCJKClick(event) {
     const character = event.target.textContent;
-    window.open(`https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${encodeURIComponent(character)}`, '_blank');
+    const url = getCJKDictionaryUrl(character);
+    window.open(url, '_blank');
 }
 
-function showKanjiInfo(info) {
+function getCJKDictionaryUrl(character) {
+    if (currentLanguage === 'chn') {
+        return `https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=${encodeURIComponent(character)}`;
+    } else if (currentLanguage === 'kor') {
+        return `https://en.dict.naver.com/#/search?query=${encodeURIComponent(character)}`;
+    } else {
+        return `https://jisho.org/search/${encodeURIComponent(character)}`;
+    }
+}
+
+function showCJKInfo(info) {
     if (!isHovering) {
         return;
     }
-    kanjiInfoBox.innerHTML = `
-        <h4>${info.kanji} (${info.reading})</h4>
-        <p><strong>Meaning:</strong> ${info.meanings}</p>
-        <p><strong>Kun'yomi:</strong> ${info.kunReadings}</p>
-        <p><strong>On'yomi:</strong> ${info.onReadings}</p>
-    `;
+    
+    let contentHtml = '';
+
+    if (currentLanguage === 'jap') {
+        contentHtml = `
+            <h4>${info.character}</h4>
+            <p><strong>Reading:</strong> ${info.reading}</p>
+            <p><strong>Meanings:</strong> ${info.meanings}</p>
+            <p><strong>Kun readings:</strong> ${info.kunReadings}</p>
+            <p><strong>On readings:</strong> ${info.onReadings}</p>
+        `;
+    } else {
+        const meaningsWithKorean = info.meaning.split('\n');
+        const meaningsList = meaningsWithKorean.map(item => {
+            const [numberPart, ...contentParts] = item.split('. ');
+            const content = contentParts.join('. ');
+            const [korean, ...meaningParts] = content.split(' - ');
+            const meaning = meaningParts.join(' - ');
+            return `
+                <li>
+                    <span class="number">${numberPart}.</span>
+                    <span class="korean">${korean}</span>
+                    <span class="meaning">${meaning}</span>
+                </li>`;
+        }).join('');
+        
+        contentHtml = `
+            <h4>${info.character}</h4>
+            <p><strong>Meanings:</strong></p>
+            <ul class="meanings-list">${meaningsList}</ul>
+            <p><strong>Pronunciation:</strong> ${info.pronunciation}</p>
+        `;
+    }
+
+    kanjiInfoBox.innerHTML = contentHtml;
     kanjiInfoBox.style.display = 'block';
+}
+
+// Setup character hover functionality
+function setupCharacterHover() {
+    const originalText = document.getElementById('original-text');
+    wrapCJKCharacters(originalText);
 }
 
 let debounceTimer = null;
@@ -968,27 +954,15 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
 });
 
 async function initializeTesseract() {
-    if (tesseractWorker) return;
-  
-    // Inject Tesseract script
-    await injectScript(chrome.runtime.getURL('lib/tesseract.min.js'));
-  
-    console.log('Tesseract script injected');
-  
+    if (tesseractWorker) {
+        await tesseractWorker.terminate();
+        tesseractWorker = null;
+    }
+
+    const langCode = getLanguageCode();
+    console.log('Initializing Tesseract worker for language:', langCode);
     tesseractWorker = await createWorker();
-  
-    console.log('Tesseract worker initialized');
-  }
-  
-  function injectScript(src) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
+}
   
 async function createWorker() {
     const langCode = getLanguageCode();
@@ -998,20 +972,19 @@ async function createWorker() {
         corePath: chrome.runtime.getURL('lib/tesseract-core-simd-lstm.wasm.js'),
         langPath: chrome.runtime.getURL('languages/'),
         logger: (m) => {
-            console.log(m);
+            //console.log(m);
         },
         errorHandler: (e) => {
             console.warn(e);
         }
     });
 
-    //Apparently not needed but i'm not sure
-    // await worker.loadLanguage(langCode);
-    // await worker.initialize(langCode);
-
-    const params = {};
+    const params = {
+        chop_enable: '1'
+    };
     if (langCode.endsWith('_vert')) {
         params['tessedit_pageseg_mode'] = Tesseract.PSM.SINGLE_BLOCK_VERT_TEXT;
+        
     }
     if (['chi_tra', 'chi_tra_vert', 'jpn', 'jpn_vert', 'kor', 'kor_vert'].includes(langCode)) {
         params['preserve_interword_spaces'] = '1';
@@ -1030,11 +1003,70 @@ function getLanguageCode() {
     return languageCodes[currentLanguage];
 }
   
+function createLogContainer() {
+    let container = document.getElementById('image-log-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'image-log-container';
+        container.style.position = 'fixed';
+        container.style.left = '10px';
+        container.style.top = '5px';
+        container.style.bottom = '5px';
+        container.style.width = '250px';
+        container.style.overflowY = 'auto';
+        container.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        container.style.padding = '10px';
+        container.style.boxShadow = '0 0 10px rgba(0,0,0,0.1)';
+        container.style.zIndex = '1000';
+        container.style.fontFamily = 'Arial, sans-serif';
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
 function logImage(imageData, label) {
     console.log(`${label}:`, imageData);
-    // You might want to display this image in the UI for debugging
-    // For example:
-    // document.body.innerHTML += `<img src="${imageData}" alt="${label}" style="max-width: 300px; margin: 10px;">`;
+    
+    const container = createLogContainer();
+    
+    // Create a unique ID for this log entry
+    const id = 'image-log-' + Date.now();
+    
+    // Create a container for the log entry
+    const logEntry = document.createElement('div');
+    logEntry.id = id;
+    logEntry.style.marginBottom = '10px';
+    logEntry.style.borderBottom = '1px solid #ddd';
+    logEntry.style.paddingBottom = '5px';
+    
+    // Create a link element
+    const link = document.createElement('a');
+    link.href = imageData;
+    link.target = '_blank';
+    link.textContent = `View ${label}`;
+    link.style.color = '#0066cc';
+    link.style.textDecoration = 'none';
+    link.style.display = 'block';
+    link.style.marginBottom = '5px';
+    
+    // Create a thumbnail
+    const thumbnail = document.createElement('img');
+    thumbnail.src = imageData;
+    thumbnail.alt = label;
+    thumbnail.style.width = '100%';
+    thumbnail.style.height = 'auto';
+    thumbnail.style.maxHeight = '300px';
+    thumbnail.style.objectFit = 'contain';
+    thumbnail.style.border = '1px solid #ddd';
+    thumbnail.style.borderRadius = '4px';
+    
+    // Add elements to the log entry
+    logEntry.appendChild(link);
+    logEntry.appendChild(thumbnail);
+    
+    // Add the log entry to the container
+    container.insertBefore(logEntry, container.firstChild);
+    
 }
 
 function invertImageColors(imageData) {
@@ -1187,6 +1219,240 @@ function rescaleImage(imageData, scaleFactor =2, targetDPI) {
     });
   }
 
+  function applyMeanFilter(imageData, kernelSize = 3) {
+    return new Promise((resolve, reject) => {
+      // Create an image object to load the base64 image
+      const img = new Image();
+      img.onload = () => {
+        // Create a canvas to draw the image
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw the image on the canvas
+        ctx.drawImage(img, 0, 0);
+        
+        // Get the image data
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        
+        // Apply mean filter
+        const result = new Uint8ClampedArray(data.length);
+        const halfKernel = Math.floor(kernelSize / 2);
+        
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            let r = 0, g = 0, b = 0, a = 0, count = 0;
+            
+            // Gather surrounding pixels
+            for (let ky = -halfKernel; ky <= halfKernel; ky++) {
+              for (let kx = -halfKernel; kx <= halfKernel; kx++) {
+                const px = x + kx;
+                const py = y + ky;
+                
+                if (px >= 0 && px < canvas.width && py >= 0 && py < canvas.height) {
+                  const i = (py * canvas.width + px) * 4;
+                  r += data[i];
+                  g += data[i + 1];
+                  b += data[i + 2];
+                  a += data[i + 3];
+                  count++;
+                }
+              }
+            }
+            
+            // Calculate average
+            const i = (y * canvas.width + x) * 4;
+            result[i] = r / count;
+            result[i + 1] = g / count;
+            result[i + 2] = b / count;
+            result[i + 3] = a / count;
+          }
+        }
+        
+        // Create new ImageData with the result
+        const resultImgData = new ImageData(result, canvas.width, canvas.height);
+        ctx.putImageData(resultImgData, 0, 0);
+        
+        // Convert the result back to base64
+        const resultBase64 = canvas.toDataURL();
+        resolve(resultBase64);
+      };
+      
+      img.onerror = (error) => {
+        reject(error);
+      };
+      
+      // Load the base64 image
+      img.src = imageData;
+    });
+  }
+
+  function adaptiveGaussianThreshold(imageData, blockSize = 11, C = 2) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            const width = imageData.width;
+            const height = imageData.height;
+
+            // Create grayscale version
+            const grayscale = new Uint8ClampedArray(width * height);
+            for (let i = 0; i < data.length; i += 4) {
+                grayscale[i / 4] = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+            }
+
+            // Compute integral image
+            const integral = new Float64Array(width * height);
+            for (let i = 0; i < width; i++) {
+                let sum = 0;
+                for (let j = 0; j < height; j++) {
+                    sum += grayscale[j * width + i];
+                    if (i === 0) {
+                        integral[j * width + i] = sum;
+                    } else {
+                        integral[j * width + i] = integral[j * width + i - 1] + sum;
+                    }
+                }
+            }
+
+            // Perform adaptive thresholding
+            const halfBlockSize = Math.floor(blockSize / 2);
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    let x1 = Math.max(0, x - halfBlockSize);
+                    let y1 = Math.max(0, y - halfBlockSize);
+                    let x2 = Math.min(width - 1, x + halfBlockSize);
+                    let y2 = Math.min(height - 1, y + halfBlockSize);
+
+                    let count = (x2 - x1 + 1) * (y2 - y1 + 1);
+                    let sum = integral[y2 * width + x2] -
+                              (x1 > 0 ? integral[y2 * width + (x1 - 1)] : 0) -
+                              (y1 > 0 ? integral[(y1 - 1) * width + x2] : 0) +
+                              (x1 > 0 && y1 > 0 ? integral[(y1 - 1) * width + (x1 - 1)] : 0);
+
+                    let idx = y * width + x;
+                    if (grayscale[idx] * count <= sum * (100 - C) / 100) {
+                        data[idx * 4] = data[idx * 4 + 1] = data[idx * 4 + 2] = 0;
+                    } else {
+                        data[idx * 4] = data[idx * 4 + 1] = data[idx * 4 + 2] = 255;
+                    }
+                }
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL());
+        };
+        img.src = imageData;
+    });
+}
+
+  function whitenImage(base64Image, whitenFactor = 0.5) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          // Increase each color channel
+          data[i] = Math.min(255, data[i] + (255 - data[i]) * whitenFactor);     // Red
+          data[i+1] = Math.min(255, data[i+1] + (255 - data[i+1]) * whitenFactor); // Green
+          data[i+2] = Math.min(255, data[i+2] + (255 - data[i+2]) * whitenFactor); // Blue
+          // Alpha channel (data[i+3]) remains unchanged
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        const whitenedBase64 = canvas.toDataURL('image/png');
+        resolve(whitenedBase64);
+      };
+      img.onerror = reject;
+      img.src = base64Image;
+    });
+  }
+
+  function binarizeImage(base64Image, threshold = 128, reverse = false) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          // Convert to grayscale first
+          const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          
+          // Binarize
+          let val = avg > threshold ? 255 : 0;
+          
+          // Reverse if needed
+          if (reverse) {
+            val = 255 - val;
+          }
+          
+          data[i] = val;     // Red
+          data[i + 1] = val; // Green
+          data[i + 2] = val; // Blue
+          // Alpha channel (data[i+3]) remains unchanged
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        const binarizedBase64 = canvas.toDataURL('image/png');
+        resolve(binarizedBase64);
+      };
+      img.onerror = reject;
+      img.src = base64Image;
+    });
+  }
+
+  function drawBoundingBoxes(imageData, words) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            // Draw the original image
+            ctx.drawImage(img, 0, 0);
+
+            // Draw bounding boxes
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+            words.forEach(word => {
+                const { bbox } = word;
+                ctx.strokeRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0);
+            });
+
+            // Convert canvas to image data
+            const boundingBoxImageData = canvas.toDataURL('image/png');
+            resolve(boundingBoxImageData);
+        };
+        img.src = imageData;
+    });
+}
+
 async function processImageWithTesseract(imageData) {
     const langCode = getLanguageCode();
     console.log(langCode);
@@ -1194,36 +1460,51 @@ async function processImageWithTesseract(imageData) {
     
     try {
         logImage(imageData, "Original Image");
-        
-        // Apply image processing steps
+        if(isFirstProcessing){
+            // Apply image processing steps
+            
+            // imageData = await invertImageColors(imageData);
+            // logImage(imageData, "After Color Inversion")
 
-        imageData = await rescaleImage(imageData, 3);
-        logImage(imageData, "After Rescaling");
+            // imageData = await enhanceBrightness(imageData, 50);
+            // logImage(imageData, "After Brightness")
 
-        // imageData = await invertImageColors(imageData);
-        // logImage(imageData, "After Inverting");
+            // imageData = await adaptiveGaussianThreshold(imageData, 51, 31);
+            // logImage(imageData, "After adaptiveGaussian");
 
-        imageData = await enhanceBrightness(imageData, 50);
-        logImage(imageData, "After Brightness enhancement");
+            // imageData = await binarizeImage(imageData, 108, true);
+            // logImage(imageData, "After Binarization");
 
-        imageData = await sharpenImage(imageData, 75);
-        logImage(imageData, "After Sharpening");
+            // imageData = await applyMeanFilter(imageData, 3);
+            // logImage(imageData, "After MeanFilter");
+
+            // imageData = await rescaleImage(imageData, 4);
+            // logImage(imageData, "After Rescaling");
+
+            isFirstProcessing = false;
+        }
 
         await initializeTesseract();
-
-        const { data } = await tesseractWorker.recognize(imageData);
+        console.log(imageData);
+        const result = await tesseractWorker.recognize(imageData);
         
-        let text = data.text;
+        // Generate bounding box image
+        const boundingBoxImage = await drawBoundingBoxes(imageData, result.data.words);
+        //logImage(boundingBoxImage, "Bounding Boxes");
+
+        let text = result.data.text;
         
         // Post-processing for CJK languages
         if (['chi_tra', 'chi_tra_vert', 'jpn', 'jpn_vert', 'kor', 'kor_vert'].includes(langCode)){
             if (text) {
-                text = text.replace(/[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}0-9.,!?…]/gu, '');
+                text = text.replace(/[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}.,!?…]/gu, '');
             }
         }
         
         console.log('Tesseract OCR Result:', text);
-        
+        lastOCRText = text;
+        lastOverlayData = imageData;
+
         // Proceed with translation
         sendMessage({ 
             action: "translate", 
@@ -1285,7 +1566,6 @@ function displayOverlay(translatedText) {
     }
 }
 
-
 function removeOverlay() {
     if (currentOverlay) {
         currentOverlay.remove();
@@ -1293,19 +1573,6 @@ function removeOverlay() {
     }
     scrollOffset = 0;
     initialScrollY = 0;
-}
-
-function updateOverlayPosition() {
-    if (currentOverlay) {
-        const scrollDifference = window.scrollY - initialScrollY;
-        const newTop = initialOverlayTop - scrollDifference;
-        
-        // Constrain the overlay to stay within the viewport
-        const minTop = 0;
-        const maxTop = window.innerHeight - currentOverlay.offsetHeight;
-        
-        currentOverlay.style.top = `${Math.max(minTop, Math.min(newTop, maxTop))}px`;
-    }
 }
 
 function adjustFontSize(textElement, container) {
